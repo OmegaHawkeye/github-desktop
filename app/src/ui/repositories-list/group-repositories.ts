@@ -43,9 +43,9 @@ export const getGroupKey = (group: RepositoryListGroup) => {
     case 'recent':
       return `0:recent`
     case 'folder':
-      return `1:folder:${group.folder.sortOrder
-        .toString()
-        .padStart(10, '0')}:${group.folder.id}`
+      return `1:folder:${group.folder.sortOrder.toString().padStart(10, '0')}:${
+        group.folder.id
+      }`
     case 'dotcom':
       return `2:dotcom:${group.owner.login}`
     case 'enterprise':

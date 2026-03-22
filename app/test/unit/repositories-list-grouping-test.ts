@@ -129,7 +129,12 @@ describe('repository list grouping', () => {
       false
     )
 
-    const grouped = groupRepositories([repoA, repoB, repoC, repoD], [], cache, [])
+    const grouped = groupRepositories(
+      [repoA, repoB, repoC, repoD],
+      [],
+      cache,
+      []
+    )
     assert.equal(grouped.length, 3)
 
     assert.equal(grouped[0].identifier.kind, 'dotcom')
@@ -160,7 +165,16 @@ describe('repository list grouping', () => {
     const workFolder = new Folder(1, 'Work', 0)
     const personalFolder = new Folder(2, 'Personal', 1)
 
-    const workRepo = new Repository('work-repo', 1, null, false, null, {}, false, 1)
+    const workRepo = new Repository(
+      'work-repo',
+      1,
+      null,
+      false,
+      null,
+      {},
+      false,
+      1
+    )
     const personalRepo = new Repository(
       'personal-repo',
       2,

@@ -87,6 +87,8 @@ export class CloneGenericRepository extends React.Component<
 
   private onFolderChanged = (event: React.FormEvent<HTMLSelectElement>) => {
     const value = event.currentTarget.value
-    this.props.onSelectedFolderChanged(value === '' ? null : parseInt(value, 10))
+    this.props.onSelectedFolderChanged(
+      value === '' ? null : parseInt(value, 10)
+    )
   }
 }

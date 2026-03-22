@@ -298,6 +298,7 @@ export type PopupDetail =
       type: PopupType.DeleteTag
       repository: Repository
       tagName: string
+      canDeleteRemote: boolean
     }
   | {
       type: PopupType.ChooseForkSettings

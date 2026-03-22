@@ -38,7 +38,9 @@ describe('RepositoriesStore', () => {
   describe('repository folders', () => {
     it('creates folders and assigns a repository to one', async () => {
       const folder = await repositoriesStore.createFolder('Work')
-      const repository = await repositoriesStore.addRepository('/some/cool/path')
+      const repository = await repositoriesStore.addRepository(
+        '/some/cool/path'
+      )
 
       await repositoriesStore.updateRepositoryFolder(repository, folder.id)
 
@@ -52,9 +54,12 @@ describe('RepositoriesStore', () => {
 
     it('removes folder assignments when deleting a folder', async () => {
       const folder = await repositoriesStore.createFolder('Work')
-      const repository = await repositoriesStore.addRepository('/some/cool/path', {
-        folderID: folder.id,
-      })
+      const repository = await repositoriesStore.addRepository(
+        '/some/cool/path',
+        {
+          folderID: folder.id,
+        }
+      )
 
       await repositoriesStore.deleteFolder(folder)
 

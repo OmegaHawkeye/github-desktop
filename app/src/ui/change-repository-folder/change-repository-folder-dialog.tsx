@@ -75,7 +75,10 @@ export class ChangeRepositoryFolder extends React.Component<
     }
 
     if (this.props.folder) {
-      await this.props.dispatcher.renameRepositoryFolder(this.props.folder, name)
+      await this.props.dispatcher.renameRepositoryFolder(
+        this.props.folder,
+        name
+      )
     } else {
       const folder = await this.props.dispatcher.createRepositoryFolder(name)
       if (this.props.repository) {

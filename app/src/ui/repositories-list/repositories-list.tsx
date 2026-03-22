@@ -147,9 +147,8 @@ export class RepositoriesList extends React.Component<
    */
   private getSelectedListItem = memoizeOne(findMatchingListItem)
   private getGroupContextMenuHandler = memoizeOne(
-    (group: RepositoryListGroup) =>
-      (event: React.MouseEvent<HTMLDivElement>) =>
-        this.onGroupContextMenu(group, event)
+    (group: RepositoryListGroup) => (event: React.MouseEvent<HTMLDivElement>) =>
+      this.onGroupContextMenu(group, event)
   )
 
   public constructor(props: IRepositoriesListProps) {
