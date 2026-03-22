@@ -136,6 +136,7 @@ import { CommitDragElement } from './drag-elements/commit-drag-element'
 import classNames from 'classnames'
 import { MoveToApplicationsFolder } from './move-to-applications-folder'
 import { ChangeRepositoryAlias } from './change-repository-alias/change-repository-alias-dialog'
+import { ChangeRepositoryFolder } from './change-repository-folder/change-repository-folder-dialog'
 import { ThankYou } from './thank-you'
 import {
   getUserContributions,
@@ -1654,6 +1655,7 @@ export class App extends React.Component<IAppProps, IAppState> {
           <CloneRepository
             key="clone-repository"
             accounts={this.state.accounts}
+            folders={this.state.folders}
             initialURL={popup.initialURL}
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
@@ -2110,6 +2112,25 @@ export class App extends React.Component<IAppProps, IAppState> {
           <ChangeRepositoryAlias
             dispatcher={this.props.dispatcher}
             repository={popup.repository}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.CreateRepositoryFolder: {
+        return (
+          <ChangeRepositoryFolder
+            dispatcher={this.props.dispatcher}
+            repository={popup.repository}
+            initialName={popup.initialName}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.RenameRepositoryFolder: {
+        return (
+          <ChangeRepositoryFolder
+            dispatcher={this.props.dispatcher}
+            folder={popup.folder}
             onDismissed={onPopupDismissedFn}
           />
         )
@@ -2927,6 +2948,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         selectedRepository={selectedRepository}
         onSelectionChanged={this.onSelectionChanged}
         repositories={this.state.repositories}
+        folders={this.state.folders}
         recentRepositories={this.state.recentRepositories}
         localRepositoryStateLookup={this.state.localRepositoryStateLookup}
         askForConfirmationOnRemoveRepository={
@@ -3114,6 +3136,20 @@ export class App extends React.Component<IAppProps, IAppState> {
       this.props.dispatcher.changeRepositoryAlias(repository, null)
     }
 
+    const onCreateRepositoryFolder = (repository: Repository) => {
+      this.props.dispatcher.showPopup({
+        type: PopupType.CreateRepositoryFolder,
+        repository,
+      })
+    }
+
+    const onUpdateRepositoryFolder = (
+      repository: Repository,
+      folderID: number | null
+    ) => {
+      this.props.dispatcher.updateRepositoryFolder(repository, folderID)
+    }
+
     const items = generateRepositoryListContextMenu({
       onRemoveRepository: this.removeRepository,
       onShowRepository: this.showRepository,
@@ -3124,7 +3160,10 @@ export class App extends React.Component<IAppProps, IAppState> {
       externalEditorLabel: this.externalEditorLabel,
       onChangeRepositoryAlias: onChangeRepositoryAlias,
       onRemoveRepositoryAlias: onRemoveRepositoryAlias,
+      onCreateRepositoryFolder: onCreateRepositoryFolder,
+      onUpdateRepositoryFolder: onUpdateRepositoryFolder,
       onViewOnGitHub: this.viewOnGitHub,
+      folders: this.state.folders,
       repository: repository,
       shellLabel: this.state.useCustomShell
         ? undefined

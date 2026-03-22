@@ -7,6 +7,7 @@ import {
   DefaultEditorLabel,
   DefaultShellLabel,
 } from '../lib/context-menu'
+import { Folder } from '../../models/folder'
 
 interface IRepositoryListItemContextMenuConfig {
   repository: Repositoryish
@@ -20,6 +21,12 @@ interface IRepositoryListItemContextMenuConfig {
   onRemoveRepository: (repository: Repositoryish) => void
   onChangeRepositoryAlias: (repository: Repository) => void
   onRemoveRepositoryAlias: (repository: Repository) => void
+  onCreateRepositoryFolder: (repository: Repository) => void
+  onUpdateRepositoryFolder: (
+    repository: Repository,
+    folderID: number | null
+  ) => void
+  folders: ReadonlyArray<Folder>
 }
 
 export const generateRepositoryListContextMenu = (
@@ -38,6 +45,7 @@ export const generateRepositoryListContextMenu = (
 
   const items: ReadonlyArray<IMenuItem> = [
     ...buildAliasMenuItems(config),
+    ...buildFolderMenuItems(config),
     {
       label: __DARWIN__ ? 'Copy Repo Name' : 'Copy repo name',
       action: () => clipboard.writeText(repository.name),
@@ -102,4 +110,41 @@ const buildAliasMenuItems = (
   }
 
   return items
+}
+
+const buildFolderMenuItems = (
+  config: IRepositoryListItemContextMenuConfig
+): ReadonlyArray<IMenuItem> => {
+  const { repository } = config
+
+  if (!(repository instanceof Repository)) {
+    return []
+  }
+
+  const submenu: Array<IMenuItem> = [
+    {
+      label: __DARWIN__ ? 'No Folder' : 'No folder',
+      action: () => config.onUpdateRepositoryFolder(repository, null),
+      type: 'checkbox',
+      checked: repository.folderID === null,
+    },
+    ...config.folders.map(folder => ({
+      label: folder.name,
+      action: () => config.onUpdateRepositoryFolder(repository, folder.id),
+      type: 'checkbox' as const,
+      checked: repository.folderID === folder.id,
+    })),
+    { type: 'separator' as const },
+    {
+      label: __DARWIN__ ? 'New Folder…' : 'New folder…',
+      action: () => config.onCreateRepositoryFolder(repository),
+    },
+  ]
+
+  return [
+    {
+      label: __DARWIN__ ? 'Move to Folder' : 'Move to folder',
+      submenu,
+    },
+  ]
 }

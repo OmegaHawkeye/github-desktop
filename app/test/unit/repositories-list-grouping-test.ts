@@ -4,6 +4,7 @@ import { groupRepositories } from '../../src/ui/repositories-list/group-reposito
 import { Repository, ILocalRepositoryState } from '../../src/models/repository'
 import { CloningRepository } from '../../src/models/cloning-repository'
 import { gitHubRepoFixture } from '../helpers/github-repo-builder'
+import { Folder } from '../../src/models/folder'
 
 describe('repository list grouping', () => {
   const repositories: Array<Repository | CloningRepository> = [
@@ -29,7 +30,7 @@ describe('repository list grouping', () => {
   const cache = new Map<number, ILocalRepositoryState>()
 
   it('groups repositories by owners/Enterprise/Other', () => {
-    const grouped = groupRepositories(repositories, cache, [])
+    const grouped = groupRepositories(repositories, [], cache, [])
     assert.equal(grouped.length, 3)
 
     assert.equal(grouped[0].identifier.kind, 'dotcom')
@@ -71,6 +72,7 @@ describe('repository list grouping', () => {
 
     const grouped = groupRepositories(
       [repoC, repoB, repoZ, repoD, repoA],
+      [],
       cache,
       []
     )
@@ -127,7 +129,7 @@ describe('repository list grouping', () => {
       false
     )
 
-    const grouped = groupRepositories([repoA, repoB, repoC, repoD], cache, [])
+    const grouped = groupRepositories([repoA, repoB, repoC, repoD], [], cache, [])
     assert.equal(grouped.length, 3)
 
     assert.equal(grouped[0].identifier.kind, 'dotcom')
@@ -152,5 +154,42 @@ describe('repository list grouping', () => {
 
     assert.equal(grouped[2].items[1].text[0], 'enterprise-repo')
     assert(grouped[2].items[1].needsDisambiguation)
+  })
+
+  it('groups repositories into user folders before metadata groups', () => {
+    const workFolder = new Folder(1, 'Work', 0)
+    const personalFolder = new Folder(2, 'Personal', 1)
+
+    const workRepo = new Repository('work-repo', 1, null, false, null, {}, false, 1)
+    const personalRepo = new Repository(
+      'personal-repo',
+      2,
+      gitHubRepoFixture({ owner: 'me', name: 'personal-repo' }),
+      false,
+      null,
+      {},
+      false,
+      2
+    )
+    const uncategorizedRepo = new Repository('uncategorized', 3, null, false)
+
+    const grouped = groupRepositories(
+      [workRepo, personalRepo, uncategorizedRepo],
+      [workFolder, personalFolder],
+      cache,
+      []
+    )
+
+    assert.equal(grouped.length, 3)
+    assert.equal(grouped[0].identifier.kind, 'folder')
+    assert.equal((grouped[0].identifier as any).folder.name, 'Work')
+    assert.equal(grouped[0].items[0].repository.path, 'work-repo')
+
+    assert.equal(grouped[1].identifier.kind, 'folder')
+    assert.equal((grouped[1].identifier as any).folder.name, 'Personal')
+    assert.equal(grouped[1].items[0].repository.path, 'personal-repo')
+
+    assert.equal(grouped[2].identifier.kind, 'other')
+    assert.equal(grouped[2].items[0].repository.path, 'uncategorized')
   })
 })

@@ -26,6 +26,7 @@ import { IAPIComment } from '../lib/api'
 import { ISecretScanResult } from '../ui/secret-scanning/push-protection-error-dialog'
 import { BypassReasonType } from '../ui/secret-scanning/bypass-push-protection-dialog'
 import { TerminalOutput, TerminalOutputListener } from '../lib/git'
+import { Folder } from './folder'
 
 export enum PopupType {
   RenameBranch = 'RenameBranch',
@@ -77,6 +78,8 @@ export enum PopupType {
   ConfirmDiscardSelection = 'ConfirmDiscardSelection',
   MoveToApplicationsFolder = 'MoveToApplicationsFolder',
   ChangeRepositoryAlias = 'ChangeRepositoryAlias',
+  CreateRepositoryFolder = 'CreateRepositoryFolder',
+  RenameRepositoryFolder = 'RenameRepositoryFolder',
   ThankYou = 'ThankYou',
   CommitMessage = 'CommitMessage',
   MultiCommitOperation = 'MultiCommitOperation',
@@ -308,6 +311,12 @@ export type PopupDetail =
     }
   | { type: PopupType.MoveToApplicationsFolder }
   | { type: PopupType.ChangeRepositoryAlias; repository: Repository }
+  | {
+      type: PopupType.CreateRepositoryFolder
+      repository?: Repository
+      initialName?: string
+    }
+  | { type: PopupType.RenameRepositoryFolder; folder: Folder }
   | {
       type: PopupType.ThankYou
       userContributions: ReadonlyArray<ReleaseNote>

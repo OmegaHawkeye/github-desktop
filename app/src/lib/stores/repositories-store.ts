@@ -1,5 +1,6 @@
 import {
   RepositoriesDatabase,
+  IDatabaseFolder,
   IDatabaseGitHubRepository,
   IDatabaseProtectedBranch,
   IDatabaseRepository,
@@ -28,9 +29,11 @@ import { WorkflowPreferences } from '../../models/workflow-preferences'
 import { clearTagsToPush } from './helpers/tags-to-push-storage'
 import { IMatchedGitHubRepository } from '../repository-matching'
 import { shallowEquals } from '../equality'
+import { Folder } from '../../models/folder'
 
 type AddRepositoryOptions = {
   missing?: boolean
+  folderID?: number | null
 }
 
 /** The store for local repositories. */
@@ -152,8 +155,14 @@ export class RepositoriesStore extends TypedBaseStore<
       repo.missing,
       repo.alias,
       repo.workflowPreferences,
-      repo.isTutorialRepository
+      repo.isTutorialRepository,
+      repo.folderID ?? null
     )
+  }
+
+  private toFolder(folder: IDatabaseFolder) {
+    assertNonNullable(folder.id, "can't convert to Folder without id")
+    return new Folder(folder.id, folder.name, folder.sortOrder)
   }
 
   /** Find a GitHub repository by its DB ID. */
@@ -186,6 +195,12 @@ export class RepositoriesStore extends TypedBaseStore<
     )
   }
 
+  /** Get all repository folders. */
+  public async getAllFolders(): Promise<ReadonlyArray<Folder>> {
+    const folders = await this.db.folders.orderBy('sortOrder').toArray()
+    return folders.map(folder => this.toFolder(folder))
+  }
+
   /**
    * Add a tutorial repository.
    *
@@ -214,6 +229,7 @@ export class RepositoriesStore extends TypedBaseStore<
           ...(existingRepo?.id !== undefined && { id: existingRepo.id }),
           path,
           alias: null,
+          folderID: existingRepo?.folderID ?? null,
           gitHubRepositoryID: ghRepo.dbID,
           missing: false,
           lastStashCheckDate: null,
@@ -252,6 +268,7 @@ export class RepositoriesStore extends TypedBaseStore<
           missing: opts?.missing ?? false,
           lastStashCheckDate: null,
           alias: null,
+          folderID: opts?.folderID ?? null,
         }
         const id = await this.db.repositories.add(dbRepo)
         return this.toRepository({ id, ...dbRepo })
@@ -287,7 +304,8 @@ export class RepositoriesStore extends TypedBaseStore<
       missing,
       repository.alias,
       repository.workflowPreferences,
-      repository.isTutorialRepository
+      repository.isTutorialRepository,
+      repository.folderID
     )
   }
 
@@ -302,6 +320,16 @@ export class RepositoriesStore extends TypedBaseStore<
     alias: string | null
   ): Promise<void> {
     await this.db.repositories.update(repository.id, { alias })
+
+    this.emitUpdatedRepositories()
+  }
+
+  /** Update the folder assignment for the specified repository. */
+  public async updateRepositoryFolder(
+    repository: Repository,
+    folderID: number | null
+  ): Promise<void> {
+    await this.db.repositories.update(repository.id, { folderID })
 
     this.emitUpdatedRepositories()
   }
@@ -337,8 +365,48 @@ export class RepositoriesStore extends TypedBaseStore<
       false,
       repository.alias,
       repository.workflowPreferences,
-      repository.isTutorialRepository
+      repository.isTutorialRepository,
+      repository.folderID
     )
+  }
+
+  /** Create a new repository folder. */
+  public async createFolder(name: string): Promise<Folder> {
+    const folder = await this.db.transaction('rw', this.db.folders, async () => {
+      const lastFolder = await this.db.folders.orderBy('sortOrder').last()
+      const sortOrder = (lastFolder?.sortOrder ?? -1) + 1
+      const id = await this.db.folders.add({ name, sortOrder })
+      return new Folder(id, name, sortOrder)
+    })
+
+    this.emitUpdatedRepositories()
+
+    return folder
+  }
+
+  /** Rename an existing repository folder. */
+  public async renameFolder(folder: Folder, name: string): Promise<void> {
+    await this.db.folders.update(folder.id, { name })
+
+    this.emitUpdatedRepositories()
+  }
+
+  /** Delete a repository folder and unassign any repositories within it. */
+  public async deleteFolder(folder: Folder): Promise<void> {
+    await this.db.transaction(
+      'rw',
+      this.db.folders,
+      this.db.repositories,
+      async () => {
+        await this.db.folders.delete(folder.id)
+        await this.db.repositories
+          .where('folderID')
+          .equals(folder.id)
+          .modify({ folderID: null })
+      }
+    )
+
+    this.emitUpdatedRepositories()
   }
 
   /**
@@ -483,7 +551,8 @@ export class RepositoriesStore extends TypedBaseStore<
       repo.missing,
       repo.alias,
       repo.workflowPreferences,
-      repo.isTutorialRepository
+      repo.isTutorialRepository,
+      repo.folderID
     )
 
     assertIsRepositoryWithGitHubRepository(updatedRepo)

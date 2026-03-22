@@ -56,6 +56,7 @@ import {
   getNonForkGitHubRepository,
   isForkedRepositoryContributingToParent,
 } from '../../models/repository'
+import { Folder } from '../../models/folder'
 import {
   CommittedFileChange,
   WorkingDirectoryFileChange,
@@ -480,6 +481,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   private accounts: ReadonlyArray<Account> = new Array<Account>()
   private repositories: ReadonlyArray<Repository> = new Array<Repository>()
+  private folders: ReadonlyArray<Folder> = new Array<Folder>()
   private recentRepositories: ReadonlyArray<number> = new Array<number>()
 
   private selectedRepository: Repository | CloningRepository | null = null
@@ -928,8 +930,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     })
     this.accountsStore.onDidError(error => this.emitError(error))
 
-    this.repositoriesStore.onDidUpdate(updateRepositories => {
+    this.repositoriesStore.onDidUpdate(async updateRepositories => {
       this.repositories = updateRepositories
+      this.folders = await this.repositoriesStore.getAllFolders()
       this.updateRepositorySelectionAfterRepositoriesChanged()
       this.emitUpdate()
     })
@@ -1052,6 +1055,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return {
       accounts: this.accounts,
       repositories,
+      folders: this.folders,
       recentRepositories: this.recentRepositories,
       localRepositoryStateLookup: this.localRepositoryStateLookup,
       windowState: this.windowState,
@@ -2190,9 +2194,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   /** Load the initial state for the app. */
   public async loadInitialState() {
-    const [accounts, repositories] = await Promise.all([
+    const [accounts, repositories, folders] = await Promise.all([
       this.accountsStore.getAll(),
       this.repositoriesStore.getAll(),
+      this.repositoriesStore.getAllFolders(),
     ])
 
     log.info(
@@ -2204,6 +2209,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     this.accounts = accounts
     this.repositories = repositories
+    this.folders = folders
 
     this.updateRepositorySelectionAfterRepositoriesChanged()
 
@@ -6516,7 +6522,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   public async _addRepositories(
-    paths: ReadonlyArray<string>
+    paths: ReadonlyArray<string>,
+    options?: { folderID?: number | null }
   ): Promise<ReadonlyArray<Repository>> {
     const addedRepositories = new Array<Repository>()
     const lfsRepositories = new Array<Repository>()
@@ -6552,7 +6559,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
         }
 
         const addedRepo = await this.repositoriesStore.addRepository(
-          validatedPath
+          validatedPath,
+          { folderID: options?.folderID ?? null }
         )
 
         // initialize the remotes for this new repository to ensure it can fetch
@@ -6761,6 +6769,25 @@ export class AppStore extends TypedBaseStore<IAppState> {
    */
   public _refreshApiRepositories(account: Account) {
     return this.apiRepositoriesStore.loadRepositories(account)
+  }
+
+  public _createRepositoryFolder(name: string): Promise<Folder> {
+    return this.repositoriesStore.createFolder(name)
+  }
+
+  public _renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
+    return this.repositoriesStore.renameFolder(folder, name)
+  }
+
+  public _deleteRepositoryFolder(folder: Folder): Promise<void> {
+    return this.repositoriesStore.deleteFolder(folder)
+  }
+
+  public _updateRepositoryFolder(
+    repository: Repository,
+    folderID: number | null
+  ): Promise<void> {
+    return this.repositoriesStore.updateRepositoryFolder(repository, folderID)
   }
 
   public _changeBranchesTab(tab: BranchesTab): Promise<void> {

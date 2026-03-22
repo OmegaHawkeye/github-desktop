@@ -55,6 +55,7 @@ import { IAPIRepoRuleset } from './api'
 import { ICustomIntegration } from './custom-integration'
 import { Emoji } from './emoji'
 import { IUpdateState } from '../ui/lib/update-store'
+import { Folder } from '../models/folder'
 
 export enum SelectionType {
   Repository,
@@ -82,6 +83,7 @@ export interface IAppState {
    * The current list of repositories tracked in the application
    */
   readonly repositories: ReadonlyArray<Repository | CloningRepository>
+  readonly folders: ReadonlyArray<Folder>
 
   /**
    * List of IDs of the most recently opened repositories (most recent first)

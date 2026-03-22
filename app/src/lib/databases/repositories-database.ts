@@ -46,11 +46,18 @@ export interface IDatabaseProtectedBranch {
   readonly name: string
 }
 
+export interface IDatabaseFolder {
+  readonly id?: number
+  readonly name: string
+  readonly sortOrder: number
+}
+
 export interface IDatabaseRepository {
   readonly id?: number
   readonly gitHubRepositoryID: number | null
   readonly path: string
   readonly alias: string | null
+  readonly folderID?: number | null
   readonly missing: boolean
 
   /** The last time the stash entries were checked for the repository */
@@ -77,6 +84,9 @@ type BranchKey = [number, string]
 export class RepositoriesDatabase extends BaseDatabase {
   /** The local repositories table. */
   public declare repositories: Dexie.Table<IDatabaseRepository, number>
+
+  /** The repository folders table. */
+  public declare folders: Dexie.Table<IDatabaseFolder, number>
 
   /** The GitHub repositories table. */
   public declare gitHubRepositories: Dexie.Table<
@@ -137,6 +147,14 @@ export class RepositoriesDatabase extends BaseDatabase {
 
     this.conditionalVersion(8, {}, ensureNoUndefinedParentID)
     this.conditionalVersion(9, { owners: '++id, &key' }, createOwnerKey)
+    this.conditionalVersion(
+      10,
+      {
+        repositories: '++id, &path, folderID',
+        folders: '++id, &name, sortOrder',
+      },
+      initializeRepositoryFolders
+    )
   }
 }
 
@@ -231,6 +249,14 @@ async function createOwnerKey(tx: Transaction) {
   }
 
   await ownersTable.bulkDelete(ownersToDelete)
+}
+
+async function initializeRepositoryFolders(tx: Transaction) {
+  await tx
+    .table<IDatabaseRepository, number>('repositories')
+    .toCollection()
+    .filter(repo => repo.folderID === undefined)
+    .modify({ folderID: null })
 }
 
 /* Creates a case-insensitive key used to uniquely identify an owner
