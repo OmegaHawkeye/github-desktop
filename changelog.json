@@ -1,5 +1,9 @@
 {
   "releases": {
+    "3.5.7-beta3": [
+      "[New] Add the ability to organise repositories into individual folders - #1",
+      "[New] Add the ability to delete tags locally and on remote repositories - #2"
+    ],
     "3.5.7-beta2": [
       "[Added] Allow empty commits via the commit options menu - #21771"
     ],
