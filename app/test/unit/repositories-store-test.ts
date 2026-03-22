@@ -35,6 +35,38 @@ describe('RepositoriesStore', () => {
     })
   })
 
+  describe('repository folders', () => {
+    it('creates folders and assigns a repository to one', async () => {
+      const folder = await repositoriesStore.createFolder('Work')
+      const repository = await repositoriesStore.addRepository('/some/cool/path')
+
+      await repositoriesStore.updateRepositoryFolder(repository, folder.id)
+
+      const folders = await repositoriesStore.getAllFolders()
+      const repositories = await repositoriesStore.getAll()
+
+      assert.equal(folders.length, 1)
+      assert.equal(folders[0].name, 'Work')
+      assert.equal(repositories[0].folderID, folder.id)
+    })
+
+    it('removes folder assignments when deleting a folder', async () => {
+      const folder = await repositoriesStore.createFolder('Work')
+      const repository = await repositoriesStore.addRepository('/some/cool/path', {
+        folderID: folder.id,
+      })
+
+      await repositoriesStore.deleteFolder(folder)
+
+      const folders = await repositoriesStore.getAllFolders()
+      const repositories = await repositoriesStore.getAll()
+
+      assert.equal(folders.length, 0)
+      assert.equal(repositories[0].folderID, null)
+      assert.equal(repositories[0].id, repository.id)
+    })
+  })
+
   describe('updating a GitHub repository', () => {
     const apiRepo: IAPIFullRepository = {
       clone_url: 'https://github.com/my-user/my-repo',

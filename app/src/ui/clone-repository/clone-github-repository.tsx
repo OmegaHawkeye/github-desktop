@@ -9,6 +9,8 @@ import { IAPIRepository } from '../../lib/api'
 import { CloneableRepositoryFilterList } from './cloneable-repository-filter-list'
 import { ClickSource } from '../lib/list'
 import { AccountPicker } from '../account-picker'
+import { Select } from '../lib/select'
+import { Folder } from '../../models/folder'
 
 interface ICloneGithubRepositoryProps {
   /** The account to clone from. */
@@ -83,6 +85,9 @@ interface ICloneGithubRepositoryProps {
   ) => void
 
   readonly onSelectedAccountChanged: (account: Account) => void
+  readonly folders: ReadonlyArray<Folder>
+  readonly selectedFolderID: number | null
+  readonly onSelectedFolderChanged: (folderID: number | null) => void
 }
 
 export class CloneGithubRepository extends React.PureComponent<ICloneGithubRepositoryProps> {
@@ -126,7 +131,26 @@ export class CloneGithubRepository extends React.PureComponent<ICloneGithubRepos
           />
           <Button onClick={this.props.onChooseDirectory}>Choose…</Button>
         </Row>
+        <Row>
+          <Select
+            label={__DARWIN__ ? 'Repository Folder' : 'Repository folder'}
+            value={this.props.selectedFolderID?.toString() ?? ''}
+            onChange={this.onFolderChanged}
+          >
+            <option value="">No folder</option>
+            {this.props.folders.map(folder => (
+              <option key={folder.id} value={folder.id.toString()}>
+                {folder.name}
+              </option>
+            ))}
+          </Select>
+        </Row>
       </DialogContent>
     )
+  }
+
+  private onFolderChanged = (event: React.FormEvent<HTMLSelectElement>) => {
+    const value = event.currentTarget.value
+    this.props.onSelectedFolderChanged(value === '' ? null : parseInt(value, 10))
   }
 }

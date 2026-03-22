@@ -26,12 +26,14 @@ import { generateRepositoryListContextMenu } from '../repositories-list/reposito
 import { SectionFilterList } from '../lib/section-filter-list'
 import { assertNever } from '../../lib/fatal-error'
 import { IAheadBehind } from '../../models/branch'
+import { Folder } from '../../models/folder'
 
 const BlankSlateImage = encodePathAsUrl(__dirname, 'static/empty-no-repo.svg')
 
 interface IRepositoriesListProps {
   readonly selectedRepository: Repositoryish | null
   readonly repositories: ReadonlyArray<Repositoryish>
+  readonly folders: ReadonlyArray<Folder>
   readonly recentRepositories: ReadonlyArray<number>
 
   /** A cache of the latest repository state values, keyed by the repository id */
@@ -120,6 +122,7 @@ export class RepositoriesList extends React.Component<
   private getRepositoryGroups = memoizeOne(
     (
       repositories: ReadonlyArray<Repositoryish> | null,
+      folders: ReadonlyArray<Folder>,
       localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
       recentRepositories: ReadonlyArray<number>
     ) =>
@@ -127,6 +130,7 @@ export class RepositoriesList extends React.Component<
         ? []
         : groupRepositories(
             repositories,
+            folders,
             localRepositoryStateLookup,
             recentRepositories
           )
@@ -142,6 +146,11 @@ export class RepositoriesList extends React.Component<
    * See findMatchingListItem for more details.
    */
   private getSelectedListItem = memoizeOne(findMatchingListItem)
+  private getGroupContextMenuHandler = memoizeOne(
+    (group: RepositoryListGroup) =>
+      (event: React.MouseEvent<HTMLDivElement>) =>
+        this.onGroupContextMenu(group, event)
+  )
 
   public constructor(props: IRepositoriesListProps) {
     super(props)
@@ -243,6 +252,8 @@ export class RepositoriesList extends React.Component<
     const { kind } = group
     if (kind === 'enterprise') {
       return group.host
+    } else if (kind === 'folder') {
+      return group.folder.name
     } else if (kind === 'other') {
       return 'Other'
     } else if (kind === 'dotcom') {
@@ -258,15 +269,17 @@ export class RepositoriesList extends React.Component<
     const label = this.getGroupLabel(group)
 
     return (
-      <TooltippedContent
-        key={getGroupKey(group)}
-        className="filter-list-group-header"
-        tooltip={label}
-        onlyWhenOverflowed={true}
-        tagName="div"
-      >
-        {label}
-      </TooltippedContent>
+      <div onContextMenu={this.getGroupContextMenuHandler(group)}>
+        <TooltippedContent
+          key={getGroupKey(group)}
+          className="filter-list-group-header"
+          tooltip={label}
+          onlyWhenOverflowed={true}
+          tagName="div"
+        >
+          {label}
+        </TooltippedContent>
+      </div>
     )
   }
 
@@ -296,7 +309,10 @@ export class RepositoriesList extends React.Component<
       externalEditorLabel: this.props.externalEditorLabel,
       onChangeRepositoryAlias: this.onChangeRepositoryAlias,
       onRemoveRepositoryAlias: this.onRemoveRepositoryAlias,
+      onCreateRepositoryFolder: this.onCreateRepositoryFolder,
+      onUpdateRepositoryFolder: this.onUpdateRepositoryFolder,
       onViewOnGitHub: this.props.onViewOnGitHub,
+      folders: this.props.folders,
       repository: item.repository,
       shellLabel: this.props.shellLabel,
     })
@@ -317,6 +333,7 @@ export class RepositoriesList extends React.Component<
   public render() {
     const groups = this.getRepositoryGroups(
       this.props.repositories,
+      this.props.folders,
       this.props.localRepositoryStateLookup,
       this.props.recentRepositories
     )
@@ -359,6 +376,33 @@ export class RepositoriesList extends React.Component<
 
   private onSelectionChanged = (selectedItem: IRepositoryListItem | null) => {
     this.setState({ selectedItem })
+  }
+
+  private onGroupContextMenu = (
+    group: RepositoryListGroup,
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    if (group.kind !== 'folder') {
+      return
+    }
+
+    event.preventDefault()
+
+    showContextualMenu([
+      {
+        label: __DARWIN__ ? 'Rename Folder…' : 'Rename folder…',
+        action: () =>
+          this.props.dispatcher.showPopup({
+            type: PopupType.RenameRepositoryFolder,
+            folder: group.folder,
+          }),
+      },
+      {
+        label: __DARWIN__ ? 'Delete Folder' : 'Delete folder',
+        action: () =>
+          this.props.dispatcher.deleteRepositoryFolder(group.folder),
+      },
+    ])
   }
 
   private renderPostFilter = () => {
@@ -455,5 +499,19 @@ export class RepositoriesList extends React.Component<
 
   private onRemoveRepositoryAlias = (repository: Repository) => {
     this.props.dispatcher.changeRepositoryAlias(repository, null)
+  }
+
+  private onCreateRepositoryFolder = (repository: Repository) => {
+    this.props.dispatcher.showPopup({
+      type: PopupType.CreateRepositoryFolder,
+      repository,
+    })
+  }
+
+  private onUpdateRepositoryFolder = (
+    repository: Repository,
+    folderID: number | null
+  ) => {
+    this.props.dispatcher.updateRepositoryFolder(repository, folderID)
   }
 }
