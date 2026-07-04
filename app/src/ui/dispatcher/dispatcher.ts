@@ -666,13 +666,6 @@ export class Dispatcher {
   }
 
   /**
-   * Deletes the passed tag.
-   */
-  public deleteTag(repository: Repository, name: string): Promise<void> {
-    return this.appStore._deleteTag(repository, name)
-  }
-
-  /**
    * Show the tag creation dialog.
    */
   public showCreateTagDialog(
@@ -695,12 +688,14 @@ export class Dispatcher {
    */
   public showDeleteTagDialog(
     repository: Repository,
-    tagName: string
+    tagName: string,
+    canDeleteRemote: boolean
   ): Promise<void> {
     return this.showPopup({
       type: PopupType.DeleteTag,
       repository,
       tagName,
+      canDeleteRemote,
     })
   }
 
@@ -814,7 +809,11 @@ export class Dispatcher {
   public async clone(
     url: string,
     path: string,
-    options?: { branch?: string; defaultBranch?: string; folderID?: number | null }
+    options?: {
+      branch?: string
+      defaultBranch?: string
+      folderID?: number | null
+    }
   ): Promise<Repository | null> {
     return this.appStore._completeOpenInDesktop(async () => {
       const { promise, repository } = this.appStore._clone(url, path, options)
@@ -855,12 +854,40 @@ export class Dispatcher {
     return this.appStore._changeRepositoryAlias(repository, newAlias)
   }
 
-  public createRepositoryFolder(name: string): Promise<Folder> {
-    return this.appStore._createRepositoryFolder(name)
+  public createRepositoryFolder(
+    name: string,
+    parentFolderID?: number | null
+  ): Promise<Folder> {
+    return this.appStore._createRepositoryFolder(name, parentFolderID)
   }
 
   public renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
     return this.appStore._renameRepositoryFolder(folder, name)
+  }
+
+  public reorderRepositoryFolders(
+    folders: ReadonlyArray<Folder>
+  ): Promise<void> {
+    return this.appStore._reorderRepositoryFolders(folders)
+  }
+
+  public reparentRepositoryFolder(
+    folder: Folder,
+    newParentFolderID: number | null
+  ): Promise<void> {
+    return this.appStore._reparentRepositoryFolder(folder, newParentFolderID)
+  }
+
+  public moveFolderRelativeTo(
+    moved: Folder,
+    target: Folder,
+    position: 'before' | 'after' | 'into'
+  ): Promise<void> {
+    return this.appStore._moveFolderRelativeTo(moved, target, position)
+  }
+
+  public toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
+    return this.appStore._toggleCollapsedRepositoryFolder(folderID)
   }
 
   public deleteRepositoryFolder(folder: Folder): Promise<void> {

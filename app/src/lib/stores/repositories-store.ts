@@ -28,6 +28,7 @@ import { TypedBaseStore } from './base-store'
 import { WorkflowPreferences } from '../../models/workflow-preferences'
 import { clearTagsToPush } from './helpers/tags-to-push-storage'
 import { IMatchedGitHubRepository } from '../repository-matching'
+import { compare } from '../compare'
 import { shallowEquals } from '../equality'
 import { Folder } from '../../models/folder'
 
@@ -162,7 +163,12 @@ export class RepositoriesStore extends TypedBaseStore<
 
   private toFolder(folder: IDatabaseFolder) {
     assertNonNullable(folder.id, "can't convert to Folder without id")
-    return new Folder(folder.id, folder.name, folder.sortOrder)
+    return new Folder(
+      folder.id,
+      folder.name,
+      folder.sortOrder,
+      folder.parentFolderID ?? null
+    )
   }
 
   /** Find a GitHub repository by its DB ID. */
@@ -197,7 +203,15 @@ export class RepositoriesStore extends TypedBaseStore<
 
   /** Get all repository folders. */
   public async getAllFolders(): Promise<ReadonlyArray<Folder>> {
-    const folders = await this.db.folders.orderBy('sortOrder').toArray()
+    const folders = await this.db.folders.toArray()
+    folders.sort((a, b) => {
+      const pa = a.parentFolderID ?? -1
+      const pb = b.parentFolderID ?? -1
+      if (pa !== pb) {
+        return pa - pb
+      }
+      return a.sortOrder - b.sortOrder
+    })
     return folders.map(folder => this.toFolder(folder))
   }
 
@@ -370,14 +384,32 @@ export class RepositoriesStore extends TypedBaseStore<
     )
   }
 
-  /** Create a new repository folder. */
-  public async createFolder(name: string): Promise<Folder> {
-    const folder = await this.db.transaction('rw', this.db.folders, async () => {
-      const lastFolder = await this.db.folders.orderBy('sortOrder').last()
-      const sortOrder = (lastFolder?.sortOrder ?? -1) + 1
-      const id = await this.db.folders.add({ name, sortOrder })
-      return new Folder(id, name, sortOrder)
-    })
+  /** Create a new repository folder (optionally nested under `parentFolderID`). */
+  public async createFolder(
+    name: string,
+    parentFolderID: number | null = null
+  ): Promise<Folder> {
+    const folder = await this.db.transaction(
+      'rw',
+      this.db.folders,
+      async () => {
+        await this.assertFolderNameUniqueAmongSiblings(name, parentFolderID)
+
+        const all = await this.db.folders.toArray()
+        const siblings = all.filter(
+          f => (f.parentFolderID ?? null) === (parentFolderID ?? null)
+        )
+        const sortOrder =
+          siblings.reduce((m, f) => Math.max(m, f.sortOrder), -1) + 1
+
+        const id = await this.db.folders.add({
+          name,
+          sortOrder,
+          parentFolderID: parentFolderID ?? null,
+        })
+        return new Folder(id, name, sortOrder, parentFolderID ?? null)
+      }
+    )
 
     this.emitUpdatedRepositories()
 
@@ -386,27 +418,221 @@ export class RepositoriesStore extends TypedBaseStore<
 
   /** Rename an existing repository folder. */
   public async renameFolder(folder: Folder, name: string): Promise<void> {
-    await this.db.folders.update(folder.id, { name })
+    await this.db.transaction('rw', this.db.folders, async () => {
+      await this.assertFolderNameUniqueAmongSiblings(name, folder.parentFolderID, folder.id)
+      await this.db.folders.update(folder.id, { name })
+    })
 
     this.emitUpdatedRepositories()
   }
 
-  /** Delete a repository folder and unassign any repositories within it. */
+  /** Persist a new ordering for repository folders that share the same parent. */
+  public async reorderFolders(folders: ReadonlyArray<Folder>): Promise<void> {
+    if (folders.length === 0) {
+      return
+    }
+
+    const parent = folders[0].parentFolderID ?? null
+    if (!folders.every(f => (f.parentFolderID ?? null) === parent)) {
+      return fatalError(
+        'reorderFolders can only reorder folders with the same parent'
+      )
+    }
+
+    await this.db.transaction('rw', this.db.folders, async () => {
+      await this.db.folders.bulkPut(
+        folders.map((folder, index) => ({
+          id: folder.id,
+          name: folder.name,
+          sortOrder: index,
+          parentFolderID: folder.parentFolderID ?? null,
+        }))
+      )
+    })
+
+    this.emitUpdatedRepositories()
+  }
+
+  /**
+   * Move a folder under a new parent (end of sibling list), with cycle checks.
+   */
+  public async reparentFolder(
+    folder: Folder,
+    newParentFolderID: number | null
+  ): Promise<void> {
+    if (folder.id === newParentFolderID) {
+      return
+    }
+
+    await this.db.transaction('rw', this.db.folders, async () => {
+      const all = await this.db.folders.toArray()
+      const byId = new Map(all.map(f => [f.id!, f]))
+
+      if (
+        newParentFolderID !== null &&
+        this.newParentWouldBeInsideMovedFolder(
+          byId,
+          folder.id,
+          newParentFolderID
+        )
+      ) {
+        throw new Error('Cannot move a folder into itself or its descendant.')
+      }
+
+      const siblings = all.filter(
+        f =>
+          (f.parentFolderID ?? null) === (newParentFolderID ?? null) &&
+          f.id !== folder.id
+      )
+      const sortOrder =
+        siblings.reduce((m, f) => Math.max(m, f.sortOrder), -1) + 1
+
+      await this.db.folders.update(folder.id, {
+        parentFolderID: newParentFolderID,
+        sortOrder,
+      })
+    })
+
+    this.emitUpdatedRepositories()
+  }
+
+  /**
+   * Move `moved` relative to `target`: before/after as siblings of `target`,
+   * or into `target` as a child.
+   */
+  public async moveFolderRelativeTo(
+    moved: Folder,
+    target: Folder,
+    position: 'before' | 'after' | 'into'
+  ): Promise<void> {
+    await this.db.transaction('rw', this.db.folders, async () => {
+      const all = await this.db.folders.toArray()
+      const byId = new Map(all.map(f => [f.id!, f]))
+
+      if (position === 'into') {
+        if (moved.id === target.id) {
+          return
+        }
+        if (this.newParentWouldBeInsideMovedFolder(byId, moved.id, target.id)) {
+          throw new Error('Cannot move a folder into itself or its descendant.')
+        }
+        const children = all.filter(
+          f => (f.parentFolderID ?? null) === target.id
+        )
+        const sortOrder =
+          children.reduce((m, f) => Math.max(m, f.sortOrder), -1) + 1
+        await this.db.folders.update(moved.id, {
+          parentFolderID: target.id,
+          sortOrder,
+        })
+        return
+      }
+
+      const newParentId = target.parentFolderID ?? null
+      if (
+        newParentId !== null &&
+        this.newParentWouldBeInsideMovedFolder(byId, moved.id, newParentId)
+      ) {
+        throw new Error('Cannot move a folder into itself or its descendant.')
+      }
+
+      const siblings = all
+        .filter(
+          f =>
+            (f.parentFolderID ?? null) === (newParentId ?? null) &&
+            f.id !== moved.id
+        )
+        .sort((a, b) => compare(a.sortOrder, b.sortOrder))
+
+      const targetIndex = siblings.findIndex(f => f.id === target.id)
+      if (targetIndex === -1) {
+        return
+      }
+
+      const insertIndex =
+        position === 'before' ? targetIndex : targetIndex + 1
+
+      const reordered = [...siblings]
+      reordered.splice(insertIndex, 0, moved)
+
+      for (let i = 0; i < reordered.length; i++) {
+        const f = reordered[i]
+        await this.db.folders.update(f.id!, {
+          parentFolderID: newParentId,
+          sortOrder: i,
+        })
+      }
+    })
+
+    this.emitUpdatedRepositories()
+  }
+
+  /** Delete a repository folder, nested children, and unassign repositories. */
   public async deleteFolder(folder: Folder): Promise<void> {
     await this.db.transaction(
       'rw',
       this.db.folders,
       this.db.repositories,
       async () => {
-        await this.db.folders.delete(folder.id)
-        await this.db.repositories
-          .where('folderID')
-          .equals(folder.id)
-          .modify({ folderID: null })
+        await this.deleteFolderAndDescendants(folder.id)
       }
     )
 
     this.emitUpdatedRepositories()
+  }
+
+  private async deleteFolderAndDescendants(folderId: number): Promise<void> {
+    const all = await this.db.folders.toArray()
+    const children = all.filter(f => f.parentFolderID === folderId)
+    for (const child of children) {
+      assertNonNullable(child.id, 'folder child id')
+      await this.deleteFolderAndDescendants(child.id)
+    }
+    await this.db.repositories
+      .where('folderID')
+      .equals(folderId)
+      .modify({ folderID: null })
+    await this.db.folders.delete(folderId)
+  }
+
+  /** True if `newParentFolderId` is the moved folder or nested under it. */
+  private newParentWouldBeInsideMovedFolder(
+    byId: Map<number, IDatabaseFolder>,
+    folderBeingMovedId: number,
+    newParentFolderId: number
+  ): boolean {
+    let id: number | null = newParentFolderId
+    const seen = new Set<number>()
+    while (id !== null) {
+      if (id === folderBeingMovedId) {
+        return true
+      }
+      if (seen.has(id)) {
+        return false
+      }
+      seen.add(id)
+      const row = byId.get(id)
+      id = row?.parentFolderID ?? null
+    }
+    return false
+  }
+
+  private async assertFolderNameUniqueAmongSiblings(
+    name: string,
+    parentFolderID: number | null,
+    exceptFolderId?: number
+  ): Promise<void> {
+    const all = await this.db.folders.toArray()
+    const lower = name.toLowerCase()
+    const conflict = all.some(
+      f =>
+        f.id !== exceptFolderId &&
+        (f.parentFolderID ?? null) === (parentFolderID ?? null) &&
+        f.name.toLowerCase() === lower
+    )
+    if (conflict) {
+      throw new Error('A folder with that name already exists in this location.')
+    }
   }
 
   /**

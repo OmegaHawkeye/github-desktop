@@ -133,6 +133,7 @@ import {
 } from '../lib/get-account-for-repository'
 import { CommitOneLine } from '../models/commit'
 import { CommitDragElement } from './drag-elements/commit-drag-element'
+import { RepositoryListDragElement } from './drag-elements/repository-list-drag-element'
 import classNames from 'classnames'
 import { MoveToApplicationsFolder } from './move-to-applications-folder'
 import { ChangeRepositoryAlias } from './change-repository-alias/change-repository-alias-dialog'
@@ -1025,6 +1026,7 @@ export class App extends React.Component<IAppProps, IAppState> {
     document.addEventListener('focus', this.onDocumentFocus, {
       capture: true,
     })
+
   }
 
   private onDocumentFocus = (event: FocusEvent) => {
@@ -2068,6 +2070,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             tagName={popup.tagName}
+            canDeleteRemote={popup.canDeleteRemote}
           />
         )
       }
@@ -2863,9 +2866,9 @@ export class App extends React.Component<IAppProps, IAppState> {
       return null
     }
 
-    const { gitHubRepository, commit, selectedCommits } = currentDragElement
     switch (currentDragElement.type) {
-      case DragType.Commit:
+      case DragType.Commit: {
+        const { gitHubRepository, commit, selectedCommits } = currentDragElement
         return (
           <CommitDragElement
             gitHubRepository={gitHubRepository}
@@ -2875,9 +2878,20 @@ export class App extends React.Component<IAppProps, IAppState> {
             accounts={this.state.accounts}
           />
         )
+      }
+      case DragType.Repository:
+        return (
+          <RepositoryListDragElement
+            repository={currentDragElement.repository}
+          />
+        )
+      case DragType.RepositoryFolder:
+        return (
+          <RepositoryListDragElement folder={currentDragElement.folder} />
+        )
       default:
         return assertNever(
-          currentDragElement.type,
+          currentDragElement,
           `Unknown drag element type: ${currentDragElement}`
         )
     }
@@ -2949,6 +2963,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         onSelectionChanged={this.onSelectionChanged}
         repositories={this.state.repositories}
         folders={this.state.folders}
+        collapsedFolderIDs={this.state.collapsedRepositoryFolderIDs}
         recentRepositories={this.state.recentRepositories}
         localRepositoryStateLookup={this.state.localRepositoryStateLookup}
         askForConfirmationOnRemoveRepository={
@@ -3230,7 +3245,10 @@ export class App extends React.Component<IAppProps, IAppState> {
         dispatcher={this.props.dispatcher}
         repository={selection.repository}
         aheadBehind={state.aheadBehind}
-        numTagsToPush={state.tagsToPush !== null ? state.tagsToPush.length : 0}
+        numTagsToPush={
+          (state.tagsToPush?.length ?? 0) +
+          (state.tagsToDeleteOnRemote?.length ?? 0)
+        }
         remoteName={remoteName}
         lastFetched={state.lastFetched}
         networkActionInProgress={state.isPushPullFetchInProgress}

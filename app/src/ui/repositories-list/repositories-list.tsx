@@ -21,12 +21,25 @@ import { PopupType } from '../../models/popup'
 import { encodePathAsUrl } from '../../lib/path'
 import { TooltippedContent } from '../lib/tooltipped-content'
 import memoizeOne from 'memoize-one'
+import classNames from 'classnames'
 import { KeyboardShortcut } from '../keyboard-shortcut/keyboard-shortcut'
 import { generateRepositoryListContextMenu } from '../repositories-list/repository-list-item-context-menu'
 import { SectionFilterList } from '../lib/section-filter-list'
 import { assertNever } from '../../lib/fatal-error'
 import { IAheadBehind } from '../../models/branch'
 import { Folder } from '../../models/folder'
+import { Draggable } from '../lib/draggable'
+import { dragAndDropManager } from '../../lib/drag-and-drop-manager'
+import {
+  DragType,
+  DropTargetSelector,
+  DropTargetType,
+} from '../../models/drag-drop'
+import {
+  canDropRepositoryIntoFolder,
+  FolderDropPosition,
+  getFolderDropPosition,
+} from './repository-list-drag-and-drop'
 
 const BlankSlateImage = encodePathAsUrl(__dirname, 'static/empty-no-repo.svg')
 
@@ -34,6 +47,7 @@ interface IRepositoriesListProps {
   readonly selectedRepository: Repositoryish | null
   readonly repositories: ReadonlyArray<Repositoryish>
   readonly folders: ReadonlyArray<Folder>
+  readonly collapsedFolderIDs: ReadonlyArray<number>
   readonly recentRepositories: ReadonlyArray<number>
 
   /** A cache of the latest repository state values, keyed by the repository id */
@@ -81,6 +95,26 @@ interface IRepositoriesListProps {
 interface IRepositoriesListState {
   readonly newRepositoryMenuExpanded: boolean
   readonly selectedItem: IRepositoryListItem | null
+  readonly activeFolderDropTarget: IActiveFolderDropTarget | null
+}
+
+interface IActiveFolderDropTarget {
+  readonly folderID: number
+  readonly kind: 'repository' | 'folder'
+  readonly position?: FolderDropPosition
+}
+
+function repositoryDropAllowed(
+  repository: Repository,
+  folder: Folder,
+  position: FolderDropPosition
+) {
+  if (position === 'into') {
+    return canDropRepositoryIntoFolder(repository, folder)
+  }
+  return (
+    (repository.folderID ?? null) !== (folder.parentFolderID ?? null)
+  )
 }
 
 const RowHeight = 29
@@ -108,6 +142,44 @@ function findMatchingListItem(
   return null
 }
 
+function isFolderHiddenByCollapsedAncestor(
+  folder: Folder,
+  folders: ReadonlyArray<Folder>,
+  collapsedFolderIDSet: ReadonlySet<number>
+): boolean {
+  let pid: number | null = folder.parentFolderID
+  const byId = new Map(folders.map(f => [f.id, f]))
+  while (pid !== null) {
+    if (collapsedFolderIDSet.has(pid)) {
+      return true
+    }
+    const parent = byId.get(pid)
+    pid = parent?.parentFolderID ?? null
+  }
+  return false
+}
+
+function getVisibleRepositoryGroups(
+  groups: ReadonlyArray<
+    IFilterListGroup<IRepositoryListItem, RepositoryListGroup>
+  >,
+  collapsedFolderIDs: ReadonlyArray<number>,
+  folders: ReadonlyArray<Folder>
+) {
+  const collapsedFolderIDSet = new Set(collapsedFolderIDs)
+  return groups.map(group => {
+    if (group.identifier.kind !== 'folder') {
+      return group
+    }
+    if (isFolderHiddenByCollapsedAncestor(group.identifier.folder, folders, collapsedFolderIDSet)) {
+      return { ...group, items: [] }
+    }
+    return collapsedFolderIDSet.has(group.identifier.folder.id)
+      ? { ...group, items: [] }
+      : group
+  })
+}
+
 /** The list of user-added repositories. */
 export class RepositoriesList extends React.Component<
   IRepositoriesListProps,
@@ -124,15 +196,21 @@ export class RepositoriesList extends React.Component<
       repositories: ReadonlyArray<Repositoryish> | null,
       folders: ReadonlyArray<Folder>,
       localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
-      recentRepositories: ReadonlyArray<number>
+      recentRepositories: ReadonlyArray<number>,
+      collapsedFolderIDs: ReadonlyArray<number>,
+      collapseFolders: boolean
     ) =>
       repositories === null
         ? []
-        : groupRepositories(
-            repositories,
-            folders,
-            localRepositoryStateLookup,
-            recentRepositories
+        : getVisibleRepositoryGroups(
+            groupRepositories(
+              repositories,
+              folders,
+              localRepositoryStateLookup,
+              recentRepositories
+            ),
+            collapseFolders ? collapsedFolderIDs : [],
+            folders
           )
   )
 
@@ -147,9 +225,20 @@ export class RepositoriesList extends React.Component<
    */
   private getSelectedListItem = memoizeOne(findMatchingListItem)
   private getGroupContextMenuHandler = memoizeOne(
-    (group: RepositoryListGroup) =>
-      (event: React.MouseEvent<HTMLDivElement>) =>
-        this.onGroupContextMenu(group, event)
+    (group: RepositoryListGroup) => (event: React.MouseEvent<HTMLDivElement>) =>
+      this.onGroupContextMenu(group, event)
+  )
+  private getRepositoryDragStartHandler = memoizeOne(
+    (repository: Repository) => () => this.onRepositoryDragStart(repository)
+  )
+  private getRepositoryDragElementRenderer = memoizeOne(
+    (repository: Repository) => () => this.onRenderRepositoryDragElement(repository)
+  )
+  private getFolderDragStartHandler = memoizeOne(
+    (folder: Folder) => () => this.onFolderDragStart(folder)
+  )
+  private getFolderDragElementRenderer = memoizeOne(
+    (folder: Folder) => () => this.onRenderFolderDragElement(folder)
   )
 
   public constructor(props: IRepositoriesListProps) {
@@ -158,12 +247,13 @@ export class RepositoriesList extends React.Component<
     this.state = {
       newRepositoryMenuExpanded: false,
       selectedItem: null,
+      activeFolderDropTarget: null,
     }
   }
 
   private renderItem = (item: IRepositoryListItem, matches: IMatches) => {
     const repository = item.repository
-    return (
+    let content = (
       <RepositoryListItem
         key={repository.id}
         repository={repository}
@@ -172,6 +262,36 @@ export class RepositoriesList extends React.Component<
         aheadBehind={item.aheadBehind}
         changedFilesCount={item.changedFilesCount}
       />
+    )
+
+    if (!(repository instanceof Repository)) {
+      return content
+    }
+
+    if (item.group.kind === 'folder') {
+      content = (
+        <div
+          className="repository-folder-drop-target repository-folder-section-drop-target"
+          onMouseEnter={this.onFolderSectionDropTargetMouseEnter(item.group.folder)}
+          onMouseMove={this.onFolderSectionDropTargetMouseMove(item.group.folder)}
+          onMouseLeave={this.onFolderSectionDropTargetMouseLeave(item.group.folder)}
+          onMouseUp={this.onFolderSectionDropTargetMouseUp(item.group.folder)}
+        >
+          {content}
+        </div>
+      )
+    }
+
+    return (
+      <Draggable
+        isEnabled={true}
+        onDragStart={this.getRepositoryDragStartHandler(repository)}
+        onRenderDragElement={this.getRepositoryDragElementRenderer(repository)}
+        onRemoveDragElement={this.onRemoveDragElement}
+        dropTargetSelectors={[DropTargetSelector.RepositoryFolder]}
+      >
+        {content}
+      </Draggable>
     )
   }
 
@@ -267,20 +387,326 @@ export class RepositoriesList extends React.Component<
 
   private renderGroupHeader = (group: RepositoryListGroup) => {
     const label = this.getGroupLabel(group)
+    const content = this.renderGroupHeaderContent(group, label)
+
+    if (group.kind !== 'folder') {
+      return <div onContextMenu={this.getGroupContextMenuHandler(group)}>{content}</div>
+    }
 
     return (
-      <div onContextMenu={this.getGroupContextMenuHandler(group)}>
+      <div
+        className="repository-folder-header-wrapper"
+        onContextMenu={this.getGroupContextMenuHandler(group)}
+      >
+        <Draggable
+          isEnabled={true}
+          onDragStart={this.getFolderDragStartHandler(group.folder)}
+          onRenderDragElement={this.getFolderDragElementRenderer(group.folder)}
+          onRemoveDragElement={this.onRemoveDragElement}
+          dropTargetSelectors={[DropTargetSelector.RepositoryFolder]}
+        >
+          {content}
+        </Draggable>
+      </div>
+    )
+  }
+
+  private renderGroupHeaderContent(
+    group: RepositoryListGroup,
+    label: string
+  ) {
+    const activeDropTarget =
+      group.kind === 'folder' &&
+      this.state.activeFolderDropTarget?.folderID === group.folder.id
+        ? this.state.activeFolderDropTarget
+        : null
+
+    if (group.kind !== 'folder') {
+      return (
+        <div className="filter-list-group-header">
+          <TooltippedContent
+            key={getGroupKey(group)}
+            className="repository-folder-drop-target-content"
+            tooltip={label}
+            onlyWhenOverflowed={true}
+            tagName="div"
+          >
+            {label}
+          </TooltippedContent>
+        </div>
+      )
+    }
+
+    const isCollapsed =
+      this.props.filterText.length === 0 &&
+      this.props.collapsedFolderIDs.includes(group.folder.id)
+
+    const depth = group.depth
+    return (
+      <div
+        className={classNames(
+          'filter-list-group-header',
+          'repository-folder-drop-target',
+          'repository-folder-header',
+          {
+            'active-drop-target': activeDropTarget !== null,
+            'repository-drop-target': activeDropTarget?.kind === 'repository',
+            'folder-drop-before': activeDropTarget?.position === 'before',
+            'folder-drop-after': activeDropTarget?.position === 'after',
+            'folder-drop-into': activeDropTarget?.position === 'into',
+          }
+        )}
+        style={{ paddingLeft: depth * 12 }}
+        onMouseEnter={this.onFolderDropTargetMouseEnter(group.folder)}
+        onMouseMove={this.onFolderDropTargetMouseMove(group.folder)}
+        onMouseLeave={this.onFolderDropTargetMouseLeave(group.folder)}
+        onMouseUp={this.onFolderDropTargetMouseUp(group.folder)}
+      >
+        <button
+          type="button"
+          className="repository-folder-disclosure-button"
+          onMouseDown={this.onFolderDisclosureMouseDown}
+          onClick={this.onToggleFolderCollapsed(group.folder)}
+          aria-expanded={!isCollapsed}
+        >
+          <Octicon
+            symbol={isCollapsed ? octicons.chevronRight : octicons.chevronDown}
+          />
+        </button>
         <TooltippedContent
           key={getGroupKey(group)}
-          className="filter-list-group-header"
+          className="repository-folder-drop-target-content"
           tooltip={label}
           onlyWhenOverflowed={true}
           tagName="div"
         >
           {label}
         </TooltippedContent>
+        <span
+          className="repository-folder-drop-target-spacer"
+          aria-hidden="true"
+        />
       </div>
     )
+  }
+
+  private onRepositoryDragStart(repository: Repository) {
+    this.blurActiveElement()
+    dragAndDropManager.setDragData({
+      type: DragType.Repository,
+      repository,
+    })
+  }
+
+  private onFolderDragStart(folder: Folder) {
+    this.blurActiveElement()
+    dragAndDropManager.setDragData({
+      type: DragType.RepositoryFolder,
+      folder,
+    })
+  }
+
+  private onRenderRepositoryDragElement(repository: Repository) {
+    this.props.dispatcher.setDragElement({
+      type: DragType.Repository,
+      repository,
+    })
+  }
+
+  private onRenderFolderDragElement(folder: Folder) {
+    this.props.dispatcher.setDragElement({
+      type: DragType.RepositoryFolder,
+      folder,
+    })
+  }
+
+  private onRemoveDragElement = () => {
+    dragAndDropManager.setDragData(null)
+    dragAndDropManager.emitLeaveDropTarget()
+    this.setState({ activeFolderDropTarget: null })
+    this.props.dispatcher.clearDragElement()
+  }
+
+  private blurActiveElement() {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+  }
+
+  private onFolderDisclosureMouseDown = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  private onToggleFolderCollapsed =
+    (folder: Folder) => (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      this.props.dispatcher.toggleCollapsedRepositoryFolder(folder.id)
+    }
+
+  private onFolderSectionDropTargetMouseEnter =
+    (folder: Folder) => (event: React.MouseEvent<HTMLDivElement>) => {
+      this.updateRepositoryFolderDropTarget(folder, 'into')
+    }
+
+  private onFolderSectionDropTargetMouseMove =
+    (folder: Folder) => (event: React.MouseEvent<HTMLDivElement>) => {
+      this.updateRepositoryFolderDropTarget(folder, 'into')
+    }
+
+  private onFolderSectionDropTargetMouseLeave =
+    (folder: Folder) => (_event: React.MouseEvent<HTMLDivElement>) => {
+      this.clearActiveFolderDropTarget(folder)
+    }
+
+  private onFolderSectionDropTargetMouseUp =
+    (folder: Folder) => (_event: React.MouseEvent<HTMLDivElement>) => {
+      this.dropRepositoryIntoFolder(folder)
+    }
+
+  private onFolderDropTargetMouseEnter =
+    (folder: Folder) => (event: React.MouseEvent<HTMLDivElement>) => {
+      this.updateActiveFolderDropTarget(folder, event)
+    }
+
+  private onFolderDropTargetMouseMove =
+    (folder: Folder) => (event: React.MouseEvent<HTMLDivElement>) => {
+      this.updateActiveFolderDropTarget(folder, event)
+    }
+
+  private onFolderDropTargetMouseLeave =
+    (folder: Folder) => (_event: React.MouseEvent<HTMLDivElement>) => {
+      this.clearActiveFolderDropTarget(folder)
+    }
+
+  private onFolderDropTargetMouseUp =
+    (folder: Folder) => (event: React.MouseEvent<HTMLDivElement>) => {
+      const dragData = dragAndDropManager.dragData
+      if (dragData === null) {
+        return
+      }
+
+      const position = getFolderDropPosition(
+        event.currentTarget.getBoundingClientRect(),
+        event.clientY
+      )
+
+      if (dragData.type === DragType.Repository) {
+        if (!repositoryDropAllowed(dragData.repository, folder, position)) {
+          return
+        }
+        if (position === 'into') {
+          this.dropRepositoryIntoFolder(folder)
+        } else {
+          this.props.dispatcher.updateRepositoryFolder(
+            dragData.repository,
+            folder.parentFolderID ?? null
+          )
+        }
+        return
+      }
+
+      if (dragData.type !== DragType.RepositoryFolder) {
+        return
+      }
+
+      if (dragData.folder.id === folder.id) {
+        return
+      }
+
+      void this.props.dispatcher
+        .moveFolderRelativeTo(dragData.folder, folder, position)
+        .catch(err => log.error('Failed to move repository folder', err))
+    }
+
+  private updateActiveFolderDropTarget(
+    folder: Folder,
+    event: React.MouseEvent<HTMLDivElement>
+  ) {
+    const dragData = dragAndDropManager.dragData
+    if (dragData === null) {
+      return
+    }
+
+    const position = getFolderDropPosition(
+      event.currentTarget.getBoundingClientRect(),
+      event.clientY
+    )
+
+    if (dragData.type === DragType.Repository) {
+      this.updateRepositoryFolderDropTarget(folder, position)
+      return
+    }
+
+    if (
+      dragData.type !== DragType.RepositoryFolder ||
+      dragData.folder.id === folder.id
+    ) {
+      return
+    }
+
+    dragAndDropManager.emitEnterDropTarget({
+      type: DropTargetType.RepositoryFolder,
+      folder,
+    })
+    this.setState({
+      activeFolderDropTarget: {
+        folderID: folder.id,
+        kind: 'folder',
+        position,
+      },
+    })
+  }
+
+  private updateRepositoryFolderDropTarget(
+    folder: Folder,
+    position: FolderDropPosition
+  ) {
+    const dragData = dragAndDropManager.dragData
+    if (
+      dragData === null ||
+      dragData.type !== DragType.Repository ||
+      !repositoryDropAllowed(dragData.repository, folder, position)
+    ) {
+      return
+    }
+
+    dragAndDropManager.emitEnterDropTarget({
+      type: DropTargetType.RepositoryFolder,
+      folder,
+    })
+    this.setState({
+      activeFolderDropTarget: {
+        folderID: folder.id,
+        kind: 'repository',
+        position,
+      },
+    })
+  }
+
+  private dropRepositoryIntoFolder(folder: Folder) {
+    const dragData = dragAndDropManager.dragData
+    if (
+      dragData === null ||
+      dragData.type !== DragType.Repository ||
+      !canDropRepositoryIntoFolder(dragData.repository, folder)
+    ) {
+      return
+    }
+
+    this.props.dispatcher.updateRepositoryFolder(dragData.repository, folder.id)
+  }
+
+  private clearActiveFolderDropTarget(folder: Folder) {
+    if (this.state.activeFolderDropTarget?.folderID !== folder.id) {
+      return
+    }
+
+    this.setState({ activeFolderDropTarget: null })
+    dragAndDropManager.emitLeaveDropTarget()
   }
 
   private onItemClick = (item: IRepositoryListItem) => {
@@ -335,7 +761,9 @@ export class RepositoriesList extends React.Component<
       this.props.repositories,
       this.props.folders,
       this.props.localRepositoryStateLookup,
-      this.props.recentRepositories
+      this.props.recentRepositories,
+      this.props.collapsedFolderIDs,
+      this.props.filterText.length === 0
     )
 
     // So there's two types of selection at play here. There's the repository
@@ -364,15 +792,24 @@ export class RepositoriesList extends React.Component<
           invalidationProps={{
             repositories: this.props.repositories,
             filterText: this.props.filterText,
+            collapsedFolderIDs: this.props.collapsedFolderIDs,
           }}
           onItemContextMenu={this.onItemContextMenu}
           getGroupAriaLabel={this.getGroupAriaLabelGetter(groups)}
           getItemAriaLabel={this.getItemAriaLabel}
           onSelectionChanged={this.onSelectionChanged}
+          shouldKeepGroupWhenEmpty={
+            this.props.filterText.length === 0
+              ? this.shouldKeepEmptyGroupVisible
+              : undefined
+          }
         />
       </div>
     )
   }
+
+  private shouldKeepEmptyGroupVisible = (group: RepositoryListGroup) =>
+    group.kind === 'folder'
 
   private onSelectionChanged = (selectedItem: IRepositoryListItem | null) => {
     this.setState({ selectedItem })

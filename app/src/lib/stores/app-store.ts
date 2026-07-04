@@ -230,6 +230,12 @@ import { TypedBaseStore } from './base-store'
 import { MergeTreeResult } from '../../models/merge'
 import { promiseWithMinimumTimeout } from '../promise'
 import { BackgroundFetcher } from './helpers/background-fetcher'
+import {
+  cleanupCollapsedRepositoryFolderIDs,
+  loadCollapsedRepositoryFolderIDs,
+  saveCollapsedRepositoryFolderIDs,
+  toggleCollapsedRepositoryFolderID,
+} from './helpers/collapsed-repository-folders-storage'
 import { RepositoryStateCache } from './repository-state-cache'
 import { readEmoji } from '../read-emoji'
 import { Emoji } from '../emoji'
@@ -482,6 +488,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private accounts: ReadonlyArray<Account> = new Array<Account>()
   private repositories: ReadonlyArray<Repository> = new Array<Repository>()
   private folders: ReadonlyArray<Folder> = new Array<Folder>()
+  private collapsedRepositoryFolderIDs: ReadonlyArray<number> =
+    new Array<number>()
   private recentRepositories: ReadonlyArray<number> = new Array<number>()
 
   private selectedRepository: Repository | CloningRepository | null = null
@@ -933,6 +941,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.repositoriesStore.onDidUpdate(async updateRepositories => {
       this.repositories = updateRepositories
       this.folders = await this.repositoriesStore.getAllFolders()
+      this.cleanupCollapsedRepositoryFolders(false)
       this.updateRepositorySelectionAfterRepositoriesChanged()
       this.emitUpdate()
     })
@@ -1056,6 +1065,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       accounts: this.accounts,
       repositories,
       folders: this.folders,
+      collapsedRepositoryFolderIDs: this.collapsedRepositoryFolderIDs,
       recentRepositories: this.recentRepositories,
       localRepositoryStateLookup: this.localRepositoryStateLookup,
       windowState: this.windowState,
@@ -1237,6 +1247,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       localTags: gitStore.localTags,
       aheadBehind: gitStore.aheadBehind,
       tagsToPush: gitStore.tagsToPush,
+      tagsToDeleteOnRemote: gitStore.tagsToDeleteOnRemote,
       remote: gitStore.currentRemote,
       lastFetched: gitStore.lastFetched,
     }))
@@ -2210,6 +2221,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.accounts = accounts
     this.repositories = repositories
     this.folders = folders
+    this.collapsedRepositoryFolderIDs = loadCollapsedRepositoryFolderIDs()
+    this.cleanupCollapsedRepositoryFolders(false)
 
     this.updateRepositorySelectionAfterRepositoriesChanged()
 
@@ -4056,12 +4069,6 @@ export class AppStore extends TypedBaseStore<IAppState> {
     await gitStore.createTag(name, sha)
   }
 
-  /** This shouldn't be called directly. See `Dispatcher`. */
-  public async _deleteTag(repository: Repository, name: string) {
-    const gitStore = this.gitStoreCache.get(repository)
-    await gitStore.deleteTag(name)
-  }
-
   private updateCheckoutProgress(
     repository: Repository,
     checkoutProgress: ICheckoutProgress | null
@@ -4800,6 +4807,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
             gitStore.tagsToPush,
             {
               onHookFailure: this.onHookFailure(() => (aborted = true)),
+              tagsToDeleteOnRemote: gitStore.tagsToDeleteOnRemote,
               ...options,
             },
             progress => {
@@ -4816,6 +4824,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
           }
 
           gitStore.clearTagsToPush()
+          gitStore.clearTagsToDeleteOnRemote()
 
           await gitStore.fetchRemotes([safeRemote], false, fetchProgress => {
             this.updatePushPullFetchProgress(repository, {
@@ -6771,12 +6780,47 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.apiRepositoriesStore.loadRepositories(account)
   }
 
-  public _createRepositoryFolder(name: string): Promise<Folder> {
-    return this.repositoriesStore.createFolder(name)
+  public _createRepositoryFolder(
+    name: string,
+    parentFolderID?: number | null
+  ): Promise<Folder> {
+    return this.repositoriesStore.createFolder(name, parentFolderID ?? null)
   }
 
   public _renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
     return this.repositoriesStore.renameFolder(folder, name)
+  }
+
+  public _reorderRepositoryFolders(
+    folders: ReadonlyArray<Folder>
+  ): Promise<void> {
+    return this.repositoriesStore.reorderFolders(folders)
+  }
+
+  public _reparentRepositoryFolder(
+    folder: Folder,
+    newParentFolderID: number | null
+  ): Promise<void> {
+    return this.repositoriesStore.reparentFolder(folder, newParentFolderID)
+  }
+
+  public _moveFolderRelativeTo(
+    moved: Folder,
+    target: Folder,
+    position: 'before' | 'after' | 'into'
+  ): Promise<void> {
+    return this.repositoriesStore.moveFolderRelativeTo(moved, target, position)
+  }
+
+  public _toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
+    this.collapsedRepositoryFolderIDs = toggleCollapsedRepositoryFolderID(
+      this.collapsedRepositoryFolderIDs,
+      folderID
+    )
+    saveCollapsedRepositoryFolderIDs(this.collapsedRepositoryFolderIDs)
+    this.emitUpdate()
+
+    return Promise.resolve()
   }
 
   public _deleteRepositoryFolder(folder: Folder): Promise<void> {
@@ -6788,6 +6832,26 @@ export class AppStore extends TypedBaseStore<IAppState> {
     folderID: number | null
   ): Promise<void> {
     return this.repositoriesStore.updateRepositoryFolder(repository, folderID)
+  }
+
+  private cleanupCollapsedRepositoryFolders(emitUpdate: boolean = true) {
+    const nextCollapsedFolderIDs = cleanupCollapsedRepositoryFolderIDs(
+      this.collapsedRepositoryFolderIDs,
+      this.folders
+    )
+
+    if (
+      nextCollapsedFolderIDs.length === this.collapsedRepositoryFolderIDs.length
+    ) {
+      return
+    }
+
+    this.collapsedRepositoryFolderIDs = nextCollapsedFolderIDs
+    saveCollapsedRepositoryFolderIDs(this.collapsedRepositoryFolderIDs)
+
+    if (emitUpdate) {
+      this.emitUpdate()
+    }
   }
 
   public _changeBranchesTab(tab: BranchesTab): Promise<void> {

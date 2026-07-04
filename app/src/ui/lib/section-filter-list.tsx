@@ -151,6 +151,14 @@ interface ISectionFilterListProps<T extends IFilterListItem, GroupIdentifier> {
   readonly renderNoItems?: () => JSX.Element | null
 
   /**
+   * Optional predicate for keeping a group visible even when it has no items.
+   * When true, a section containing only the header row will still be rendered.
+   */
+  readonly shouldKeepGroupWhenEmpty?: (
+    identifier: GroupIdentifier
+  ) => boolean
+
+  /**
    * A reference to a TextBox that will be used to control this component.
    *
    * See https://github.com/desktop/desktop/issues/4317 for refactoring work to
@@ -711,7 +719,10 @@ function createStateUpdate<T extends IFilterListItem, GroupIdentifier>(
           item,
         }))
 
-    if (!items.length) {
+    if (
+      !items.length &&
+      props.shouldKeepGroupWhenEmpty?.(group.identifier) !== true
+    ) {
       continue
     }
 

@@ -84,6 +84,7 @@ export interface IAppState {
    */
   readonly repositories: ReadonlyArray<Repository | CloningRepository>
   readonly folders: ReadonlyArray<Folder>
+  readonly collapsedRepositoryFolderIDs: ReadonlyArray<number>
 
   /**
    * List of IDs of the most recently opened repositories (most recent first)

@@ -50,6 +50,8 @@ export interface IDatabaseFolder {
   readonly id?: number
   readonly name: string
   readonly sortOrder: number
+  /** `null` when the folder is at the root of the tree. */
+  readonly parentFolderID: number | null
 }
 
 export interface IDatabaseRepository {
@@ -155,6 +157,15 @@ export class RepositoriesDatabase extends BaseDatabase {
       },
       initializeRepositoryFolders
     )
+
+    this.conditionalVersion(
+      11,
+      {
+        repositories: '++id, &path, folderID',
+        folders: '++id, parentFolderID, sortOrder, name',
+      },
+      addParentFolderIDToRepositoryFolders
+    )
   }
 }
 
@@ -257,6 +268,13 @@ async function initializeRepositoryFolders(tx: Transaction) {
     .toCollection()
     .filter(repo => repo.folderID === undefined)
     .modify({ folderID: null })
+}
+
+async function addParentFolderIDToRepositoryFolders(tx: Transaction) {
+  await tx
+    .table<IDatabaseFolder, number>('folders')
+    .toCollection()
+    .modify({ parentFolderID: null })
 }
 
 /* Creates a case-insensitive key used to uniquely identify an owner

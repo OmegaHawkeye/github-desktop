@@ -8,6 +8,7 @@ import {
   DefaultShellLabel,
 } from '../lib/context-menu'
 import { Folder } from '../../models/folder'
+import { getFoldersInTreeOrder } from './group-repositories'
 
 interface IRepositoryListItemContextMenuConfig {
   repository: Repositoryish
@@ -112,6 +113,20 @@ const buildAliasMenuItems = (
   return items
 }
 
+function folderNestingDepth(
+  folder: Folder,
+  foldersById: ReadonlyMap<number, Folder>
+): number {
+  let d = 0
+  let pid: number | null = folder.parentFolderID
+  while (pid !== null) {
+    d++
+    const p = foldersById.get(pid)
+    pid = p?.parentFolderID ?? null
+  }
+  return d
+}
+
 const buildFolderMenuItems = (
   config: IRepositoryListItemContextMenuConfig
 ): ReadonlyArray<IMenuItem> => {
@@ -121,6 +136,9 @@ const buildFolderMenuItems = (
     return []
   }
 
+  const foldersById = new Map(config.folders.map(f => [f.id, f]))
+  const orderedFolders = getFoldersInTreeOrder(config.folders)
+
   const submenu: Array<IMenuItem> = [
     {
       label: __DARWIN__ ? 'No Folder' : 'No folder',
@@ -128,12 +146,16 @@ const buildFolderMenuItems = (
       type: 'checkbox',
       checked: repository.folderID === null,
     },
-    ...config.folders.map(folder => ({
-      label: folder.name,
-      action: () => config.onUpdateRepositoryFolder(repository, folder.id),
-      type: 'checkbox' as const,
-      checked: repository.folderID === folder.id,
-    })),
+    ...orderedFolders.map(folder => {
+      const depth = folderNestingDepth(folder, foldersById)
+      const indent = depth > 0 ? `${'  '.repeat(depth)}` : ''
+      return {
+        label: `${indent}${folder.name}`,
+        action: () => config.onUpdateRepositoryFolder(repository, folder.id),
+        type: 'checkbox' as const,
+        checked: repository.folderID === folder.id,
+      }
+    }),
     { type: 'separator' as const },
     {
       label: __DARWIN__ ? 'New Folder…' : 'New folder…',

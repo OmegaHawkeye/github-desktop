@@ -76,6 +76,11 @@ $overlay-background-color: rgba(0, 0, 0, 0.4);
   --font-weight-semibold: 600;
 
   /**
+   * Font weight between normal and semibold (UI labels, folder titles)
+   */
+  --font-weight-medium: 500;
+
+  /**
    * Font weight to use for light text
    */
   --font-weight-light: 300;

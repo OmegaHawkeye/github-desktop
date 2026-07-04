@@ -38,7 +38,9 @@ describe('RepositoriesStore', () => {
   describe('repository folders', () => {
     it('creates folders and assigns a repository to one', async () => {
       const folder = await repositoriesStore.createFolder('Work')
-      const repository = await repositoriesStore.addRepository('/some/cool/path')
+      const repository = await repositoriesStore.addRepository(
+        '/some/cool/path'
+      )
 
       await repositoriesStore.updateRepositoryFolder(repository, folder.id)
 
@@ -50,11 +52,40 @@ describe('RepositoriesStore', () => {
       assert.equal(repositories[0].folderID, folder.id)
     })
 
+    it('persists reordered folder sort order without changing assignments', async () => {
+      const workFolder = await repositoriesStore.createFolder('Work')
+      const personalFolder = await repositoriesStore.createFolder('Personal')
+      await repositoriesStore.addRepository('/some/cool/path', {
+        folderID: workFolder.id,
+      })
+
+      await repositoriesStore.reorderFolders([personalFolder, workFolder])
+
+      const folders = await repositoriesStore.getAllFolders()
+      const repositories = await repositoriesStore.getAll()
+
+      assert.deepEqual(
+        folders.map(folder => ({
+          id: folder.id,
+          name: folder.name,
+          sortOrder: folder.sortOrder,
+        })),
+        [
+          { id: personalFolder.id, name: 'Personal', sortOrder: 0 },
+          { id: workFolder.id, name: 'Work', sortOrder: 1 },
+        ]
+      )
+      assert.equal(repositories[0].folderID, workFolder.id)
+    })
+
     it('removes folder assignments when deleting a folder', async () => {
       const folder = await repositoriesStore.createFolder('Work')
-      const repository = await repositoriesStore.addRepository('/some/cool/path', {
-        folderID: folder.id,
-      })
+      const repository = await repositoriesStore.addRepository(
+        '/some/cool/path',
+        {
+          folderID: folder.id,
+        }
+      )
 
       await repositoriesStore.deleteFolder(folder)
 

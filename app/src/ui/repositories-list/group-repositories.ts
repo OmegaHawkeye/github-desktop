@@ -22,6 +22,8 @@ export type RepositoryListGroup =
   | {
       kind: 'folder'
       folder: Folder
+      /** Nesting depth (0 = root folder row). */
+      depth: number
     }
   | {
       kind: 'dotcom'
@@ -43,7 +45,7 @@ export const getGroupKey = (group: RepositoryListGroup) => {
     case 'recent':
       return `0:recent`
     case 'folder':
-      return `1:folder:${group.folder.sortOrder
+      return `1:folder:${group.depth}:${group.folder.sortOrder
         .toString()
         .padStart(10, '0')}:${group.folder.id}`
     case 'dotcom':
@@ -53,7 +55,7 @@ export const getGroupKey = (group: RepositoryListGroup) => {
     case 'other':
       return `4:other`
     default:
-      assertNever(group, `Unknown repository group kind ${kind}`)
+      assertNever(group, `Unknown repository group kind ${group}`)
   }
 }
 export type Repositoryish = Repository | CloningRepository
@@ -62,6 +64,7 @@ export interface IRepositoryListItem extends IFilterListItem {
   readonly text: ReadonlyArray<string>
   readonly id: string
   readonly repository: Repositoryish
+  readonly group: RepositoryListGroup
   readonly needsDisambiguation: boolean
   readonly aheadBehind: IAheadBehind | null
   readonly changedFilesCount: number
@@ -72,6 +75,53 @@ const recentRepositoriesThreshold = 7
 const getHostForRepository = (repo: RepositoryWithGitHubRepository) =>
   new URL(getHTMLURL(repo.gitHubRepository.endpoint)).host
 
+function folderDepth(
+  folder: Folder,
+  foldersByID: ReadonlyMap<number, Folder>
+): number {
+  let d = 0
+  let pid: number | null = folder.parentFolderID
+  while (pid !== null) {
+    d++
+    const p = foldersByID.get(pid)
+    if (p === undefined) {
+      break
+    }
+    pid = p.parentFolderID
+  }
+  return d
+}
+
+/** Depth-first pre-order of folders (roots first, then children by sortOrder). */
+export function getFoldersInTreeOrder(
+  folders: ReadonlyArray<Folder>
+): ReadonlyArray<Folder> {
+  const byParent = new Map<number | null, Folder[]>()
+  for (const f of folders) {
+    const p = f.parentFolderID ?? null
+    let list = byParent.get(p)
+    if (list === undefined) {
+      list = []
+      byParent.set(p, list)
+    }
+    list.push(f)
+  }
+  for (const list of byParent.values()) {
+    list.sort((a, b) => compare(a.sortOrder, b.sortOrder))
+  }
+
+  const result: Folder[] = []
+  const walk = (parentId: number | null) => {
+    const children = byParent.get(parentId) ?? []
+    for (const child of children) {
+      result.push(child)
+      walk(child.id)
+    }
+  }
+  walk(null)
+  return result
+}
+
 const getGroupForRepository = (
   repo: Repositoryish,
   foldersByID: ReadonlyMap<number, Folder>
@@ -79,7 +129,8 @@ const getGroupForRepository = (
   if (repo instanceof Repository && repo.folderID !== null) {
     const folder = foldersByID.get(repo.folderID)
     if (folder !== undefined) {
-      return { kind: 'folder', folder }
+      const depth = folderDepth(folder, foldersByID)
+      return { kind: 'folder', folder, depth }
     }
   }
 
@@ -92,6 +143,19 @@ const getGroupForRepository = (
 }
 
 type RepoGroupItem = { group: RepositoryListGroup; repos: Repositoryish[] }
+
+function groupsMatchForDisambiguation(
+  a: RepositoryListGroup,
+  b: RepositoryListGroup
+): boolean {
+  if (a === b) {
+    return true
+  }
+  if (a.kind === 'folder' && b.kind === 'folder') {
+    return a.folder.id === b.folder.id
+  }
+  return false
+}
 
 export function groupRepositories(
   repositories: ReadonlyArray<Repositoryish>,
@@ -115,11 +179,13 @@ export function groupRepositories(
     rg.repos.push(repo)
   }
 
-  for (const folder of folders) {
-    groups.set(getGroupKey({ kind: 'folder', folder }), {
-      group: { kind: 'folder', folder },
-      repos: [],
-    })
+  for (const folder of getFoldersInTreeOrder(folders)) {
+    const depth = folderDepth(folder, foldersByID)
+    const g: RepositoryListGroup = { kind: 'folder', folder, depth }
+    const key = getGroupKey(g)
+    if (!groups.has(key)) {
+      groups.set(key, { group: g, repos: [] })
+    }
   }
 
   for (const repo of repositories) {
@@ -130,17 +196,95 @@ export function groupRepositories(
     addToGroup(getGroupForRepository(repo, foldersByID), repo)
   }
 
-  return Array.from(groups)
-    .sort(([xKey], [yKey]) => compare(xKey, yKey))
-    .map(([, { group, repos }]) => ({
-      identifier: group,
+  const output: Array<
+    IFilterListGroup<IRepositoryListItem, RepositoryListGroup>
+  > = []
+
+  if (includeRecentGroup) {
+    const recentKey = getGroupKey({ kind: 'recent' })
+    const recentRg = groups.get(recentKey)
+    if (recentRg !== undefined) {
+      output.push({
+        identifier: { kind: 'recent' },
+        items: toSortedListItems(
+          { kind: 'recent' },
+          recentRg.repos,
+          localRepositoryStateLookup,
+          groups
+        ),
+      })
+    }
+  }
+
+  for (const folder of getFoldersInTreeOrder(folders)) {
+    const depth = folderDepth(folder, foldersByID)
+    const g: RepositoryListGroup = { kind: 'folder', folder, depth }
+    const key = getGroupKey(g)
+    const rg = groups.get(key)
+    if (rg !== undefined) {
+      output.push({
+        identifier: g,
+        items: toSortedListItems(
+          g,
+          rg.repos,
+          localRepositoryStateLookup,
+          groups
+        ),
+      })
+    }
+  }
+
+  const dotcomKeys = Array.from(groups.keys())
+    .filter(k => k.startsWith('2:dotcom'))
+    .sort(compare)
+  for (const key of dotcomKeys) {
+    const rg = groups.get(key)
+    if (rg !== undefined) {
+      output.push({
+        identifier: rg.group,
+        items: toSortedListItems(
+          rg.group,
+          rg.repos,
+          localRepositoryStateLookup,
+          groups
+        ),
+      })
+    }
+  }
+
+  const enterpriseKeys = Array.from(groups.keys())
+    .filter(k => k.startsWith('3:enterprise'))
+    .sort(compare)
+  for (const key of enterpriseKeys) {
+    const rg = groups.get(key)
+    if (rg !== undefined) {
+      output.push({
+        identifier: rg.group,
+        items: toSortedListItems(
+          rg.group,
+          rg.repos,
+          localRepositoryStateLookup,
+          groups
+        ),
+      })
+    }
+  }
+
+  const otherKey = getGroupKey({ kind: 'other' })
+  const otherRg = groups.get(otherKey)
+  if (otherRg !== undefined) {
+    output.push({
+      identifier: { kind: 'other' },
       items: toSortedListItems(
-        group,
-        repos,
+        { kind: 'other' },
+        otherRg.repos,
         localRepositoryStateLookup,
         groups
       ),
-    }))
+    })
+  }
+
+  return output
 }
 
 // Returns the display title for a repository, which is either the alias
@@ -166,7 +310,7 @@ const toSortedListItems = (
 
     for (const title of groupItem.repos.map(getDisplayTitle)) {
       allNames.set(title, (allNames.get(title) ?? 0) + 1)
-      if (groupItem.group === group) {
+      if (groupsMatchForDisambiguation(groupItem.group, group)) {
         groupNames.set(title, (groupNames.get(title) ?? 0) + 1)
       }
     }
@@ -181,6 +325,7 @@ const toSortedListItems = (
         text: r instanceof Repository ? [title, nameOf(r)] : [title],
         id: r.id.toString(),
         repository: r,
+        group,
         needsDisambiguation:
           // If the repository is in the enterprise group and has a duplicate
           // name in the group, we need to disambiguate it. We don't have to
