@@ -331,6 +331,11 @@ $overlay-background-color: rgba(0, 0, 0, 0.4);
   --list-item-selected-active-badge-background-color: #{$white};
   --list-item-hover-background-color: #{$gray-100};
 
+  /**
+   * Repository picker foldout (toolbar): align with main chrome background.
+   */
+  --repository-sidebar-background: var(--background-color);
+
   /** Windows/Linux have custom scrollbars, see _scroll.scss */
   --win32-scroll-bar-size: 10px;
   --linux-scroll-bar-size: 10px;

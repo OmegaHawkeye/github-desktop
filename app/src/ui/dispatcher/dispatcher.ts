@@ -293,6 +293,30 @@ export class Dispatcher {
     return this.appStore._selectRepository(repository)
   }
 
+  public closeRepositoryTab(repositoryId: number): Promise<void> {
+    return this.appStore._closeRepositoryTab(repositoryId)
+  }
+
+  public closeOtherRepositoryTabs(repositoryId: number): Promise<void> {
+    return this.appStore._closeOtherRepositoryTabs(repositoryId)
+  }
+
+  public closeRepositoryTabsToRight(repositoryId: number): Promise<void> {
+    return this.appStore._closeRepositoryTabsToRight(repositoryId)
+  }
+
+  public selectAdjacentRepositoryTab(
+    direction: 'next' | 'previous'
+  ): Promise<void> {
+    return this.appStore._selectAdjacentRepositoryTab(direction)
+  }
+
+  public reorderRepositoryTabs(
+    orderedRepositoryIds: ReadonlyArray<number>
+  ): Promise<void> {
+    return this.appStore._reorderRepositoryTabs(orderedRepositoryIds)
+  }
+
   /** Change the selected section in the repository. */
   public changeRepositorySection(
     repository: Repository,
