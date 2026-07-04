@@ -89,6 +89,12 @@ export interface IAppState {
   readonly recentRepositories: ReadonlyArray<number>
 
   /**
+   * Open repository tabs (browser-style), ordered left-to-right. Repository ids
+   * must still exist in {@link repositories}.
+   */
+  readonly openRepositoryTabIDs: ReadonlyArray<number>
+
+  /**
    * A cache of the latest repository state values, keyed by the repository id
    */
   readonly localRepositoryStateLookup: Map<number, ILocalRepositoryState>

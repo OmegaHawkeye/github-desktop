@@ -44,6 +44,7 @@ import { CloningRepository } from '../models/cloning-repository'
 import { TitleBar, ZoomInfo, FullScreenInfo } from './window'
 
 import { RepositoriesList } from './repositories-list'
+import { RepositoryTabs } from './repository-tabs/repository-tabs'
 import { RepositoryView } from './repository'
 import { RenameBranch } from './rename-branch'
 import { DeleteBranch, DeleteRemoteBranch } from './delete-branch'
@@ -352,8 +353,48 @@ export class App extends React.Component<IAppProps, IAppState> {
   public componentWillUnmount() {
     window.clearInterval(this.updateIntervalHandle)
 
+    window.removeEventListener('keydown', this.onRepositoryTabNavigationKeyDown)
+
     if (__DARWIN__) {
       window.removeEventListener('keydown', this.onMacOSWindowKeyDown)
+    }
+  }
+
+  /**
+   * Switch repository tabs with ⌥⌘←/→ (macOS) or Ctrl+Alt+←/→ (Windows/Linux).
+   */
+  private onRepositoryTabNavigationKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented) {
+      return
+    }
+
+    if (this.isShowingModal) {
+      return
+    }
+
+    if (this.state.openRepositoryTabIDs.length === 0) {
+      return
+    }
+
+    const modifier =
+      __DARWIN__ &&
+      event.metaKey &&
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.shiftKey
+        ? true
+        : !__DARWIN__ && event.ctrlKey && event.altKey && !event.shiftKey
+
+    if (!modifier) {
+      return
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      this.props.dispatcher.selectAdjacentRepositoryTab('previous')
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      this.props.dispatcher.selectAdjacentRepositoryTab('next')
     }
   }
 
@@ -1024,6 +1065,8 @@ export class App extends React.Component<IAppProps, IAppState> {
     document.addEventListener('focus', this.onDocumentFocus, {
       capture: true,
     })
+
+    window.addEventListener('keydown', this.onRepositoryTabNavigationKeyDown)
   }
 
   private onDocumentFocus = (event: FocusEvent) => {
@@ -2905,11 +2948,41 @@ export class App extends React.Component<IAppProps, IAppState> {
         className={this.getDesktopAppContentsClassNames()}
       >
         {this.renderToolbar()}
+        {this.renderRepositoryTabs()}
         {this.renderBanner()}
         {this.renderRepository()}
         {this.renderPopups()}
         {this.renderDragElement()}
       </div>
+    )
+  }
+
+  private renderRepositoryTabs() {
+    if (this.state.showWelcomeFlow || this.inNoRepositoriesViewState()) {
+      return null
+    }
+
+    const selectedRepository =
+      this.state.selectedState?.type === SelectionType.Repository
+        ? this.state.selectedState.repository
+        : null
+
+    const repositories = this.state.repositories.filter(
+      (r): r is Repository => r instanceof Repository
+    )
+
+    if (repositories.length === 0) {
+      return null
+    }
+
+    return (
+      <RepositoryTabs
+        openRepositoryTabIDs={this.state.openRepositoryTabIDs}
+        repositories={repositories}
+        selectedRepository={selectedRepository}
+        localRepositoryStateLookup={this.state.localRepositoryStateLookup}
+        dispatcher={this.props.dispatcher}
+      />
     )
   }
 
