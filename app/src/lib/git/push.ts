@@ -68,13 +68,8 @@ export async function push(
   }
 
   const tagsToDeleteOnRemote = options?.tagsToDeleteOnRemote
-  if (
-    tagsToDeleteOnRemote !== undefined &&
-    tagsToDeleteOnRemote !== null
-  ) {
-    args.push(
-      ...tagsToDeleteOnRemote.map(tagName => `:refs/tags/${tagName}`)
-    )
+  if (tagsToDeleteOnRemote !== undefined && tagsToDeleteOnRemote !== null) {
+    args.push(...tagsToDeleteOnRemote.map(tagName => `:refs/tags/${tagName}`))
   }
 
   if (!remoteBranch) {
