@@ -641,11 +641,14 @@ export class CompareSidebar extends React.Component<
   }
 
   private onDeleteTag = (tagName: string) => {
+    const isTagPendingPush = this.props.tagsToPush?.includes(tagName) ?? false
+
     this.props.dispatcher.showDeleteTagDialog(
       this.props.repository,
       tagName,
-      this.props.repository.gitHubRepository !== null ||
-        this.props.currentBranch?.upstreamRemoteName != null
+      !isTagPendingPush &&
+        (this.props.repository.gitHubRepository !== null ||
+          this.props.currentBranch?.upstreamRemoteName != null)
     )
   }
 

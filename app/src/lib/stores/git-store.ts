@@ -372,9 +372,10 @@ export class GitStore extends BaseStore {
     }
 
     await this.refreshTags()
+    const wasPendingPush = this._tagsToPush.includes(name)
     this.removeTagToPush(name)
 
-    if (removeFromRemote) {
+    if (removeFromRemote && !wasPendingPush) {
       this.addTagToDeleteOnRemote(name)
     }
 

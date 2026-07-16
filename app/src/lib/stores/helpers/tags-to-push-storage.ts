@@ -36,6 +36,13 @@ export function clearTagsToPush(repository: Repository) {
   localStorage.removeItem(getTagsToPushKey(repository))
 }
 
+/**
+ * Store in localStorage the tags to delete from the remote for the given
+ * repository.
+ *
+ * @param repository the repository object
+ * @param tagsToDeleteOnRemote array with the tags to delete from the remote
+ */
 export function storeTagsToDeleteOnRemote(
   repository: Repository,
   tagsToDeleteOnRemote: ReadonlyArray<string>
@@ -47,10 +54,22 @@ export function storeTagsToDeleteOnRemote(
   }
 }
 
+/**
+ * Get from localStorage the tags to delete from the remote for the given
+ * repository.
+ *
+ * @param repository the repository object
+ */
 export function getTagsToDeleteOnRemote(repository: Repository) {
   return getStringArray(getTagsToDeleteOnRemoteKey(repository))
 }
 
+/**
+ * Clear from localStorage the tags to delete from the remote for the given
+ * repository.
+ *
+ * @param repository the repository object
+ */
 export function clearTagsToDeleteOnRemote(repository: Repository) {
   localStorage.removeItem(getTagsToDeleteOnRemoteKey(repository))
 }

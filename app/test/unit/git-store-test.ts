@@ -367,5 +367,19 @@ describe('GitStore', () => {
       const remoteCommitAfterPush = await getCommit(remoteRepository, 'HEAD')
       assert.equal(remoteCommitAfterPush?.tags.includes('my-new-tag'), false)
     })
+
+    it('does not queue remote deletion for an unpushed tag', async t => {
+      const path = await setupFixtureRepository(t, 'test-repo-with-tags')
+      const repository = new Repository(path, -1, null, false)
+      const gitStore = new GitStore(repository, shell, new TestStatsStore())
+
+      await gitStore.createTag('my-new-tag', 'HEAD')
+      assert.deepStrictEqual(gitStore.tagsToPush, ['my-new-tag'])
+
+      await gitStore.deleteTag('my-new-tag', true)
+
+      assert.deepStrictEqual(gitStore.tagsToPush, [])
+      assert.deepStrictEqual(gitStore.tagsToDeleteOnRemote, [])
+    })
   })
 })

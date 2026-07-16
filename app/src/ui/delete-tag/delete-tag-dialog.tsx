@@ -54,7 +54,7 @@ export class DeleteTag extends React.Component<
           {this.renderDeleteOnRemote()}
         </DialogContent>
         <DialogFooter>
-          <OkCancelButtonGroup okButtonText="Delete" />
+          <OkCancelButtonGroup destructive={true} okButtonText="Delete" />
         </DialogFooter>
       </Dialog>
     )

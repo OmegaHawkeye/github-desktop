@@ -67,11 +67,13 @@ export async function push(
     args.push(...tagsToPush)
   }
 
-  if (options?.tagsToDeleteOnRemote !== null) {
+  const tagsToDeleteOnRemote = options?.tagsToDeleteOnRemote
+  if (
+    tagsToDeleteOnRemote !== undefined &&
+    tagsToDeleteOnRemote !== null
+  ) {
     args.push(
-      ...(options?.tagsToDeleteOnRemote ?? []).map(
-        tagName => `:refs/tags/${tagName}`
-      )
+      ...tagsToDeleteOnRemote.map(tagName => `:refs/tags/${tagName}`)
     )
   }
 
