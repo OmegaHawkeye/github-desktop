@@ -6,6 +6,7 @@ import { Octicon } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
 import { IMenuItem, showContextualMenu } from '../../lib/menu-item'
 import { FoldoutType } from '../../lib/app-state'
+import { reorderRepositoryTabIDs } from '../../lib/stores/helpers/open-repository-tabs-storage'
 
 const tabDragType = 'application/x-github-desktop-repository-tab'
 
@@ -25,15 +26,86 @@ export class RepositoryTabs extends React.Component<
   IRepositoryTabsProps,
   IRepositoryTabsState
 > {
+  private readonly tabButtonRefs = new Map<number, HTMLButtonElement>()
+  private focusSelectedTabOnUpdate = false
+
   public constructor(props: IRepositoryTabsProps) {
     super(props)
     this.state = { dragOverTabId: null }
   }
 
-  private onTabClick = (repositoryId: number) => {
+  public componentDidUpdate(previousProps: IRepositoryTabsProps) {
+    const selectedRepositoryId = this.props.selectedRepository?.id
+    if (selectedRepositoryId === previousProps.selectedRepository?.id) {
+      return
+    }
+
+    const selectedTab = this.tabButtonRefs.get(selectedRepositoryId ?? -1)
+    selectedTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+
+    if (this.focusSelectedTabOnUpdate) {
+      selectedTab?.focus()
+      this.focusSelectedTabOnUpdate = false
+    }
+  }
+
+  private selectRepositoryTab = (repositoryId: number, focus: boolean) => {
     const repo = this.props.repositories.find(r => r.id === repositoryId)
     if (repo !== undefined) {
+      if (focus && this.props.selectedRepository?.id === repositoryId) {
+        this.tabButtonRefs.get(repositoryId)?.focus()
+        return
+      }
+
+      this.focusSelectedTabOnUpdate = focus
       this.props.dispatcher.selectRepository(repo)
+    }
+  }
+
+  private onTabClick = (repositoryId: number) => {
+    this.selectRepositoryTab(repositoryId, false)
+  }
+
+  private onTabKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    repositoryId: number
+  ) => {
+    const tabs = this.props.openRepositoryTabIDs
+    const currentIndex = tabs.indexOf(repositoryId)
+    if (currentIndex === -1) {
+      return
+    }
+
+    let targetIndex: number | null = null
+    if (event.key === 'ArrowLeft') {
+      targetIndex = (currentIndex - 1 + tabs.length) % tabs.length
+    } else if (event.key === 'ArrowRight') {
+      targetIndex = (currentIndex + 1) % tabs.length
+    } else if (event.key === 'Home') {
+      targetIndex = 0
+    } else if (event.key === 'End') {
+      targetIndex = tabs.length - 1
+    } else if (event.key === 'Delete') {
+      this.focusSelectedTabOnUpdate = true
+      this.props.dispatcher.closeRepositoryTab(repositoryId)
+      event.preventDefault()
+      return
+    }
+
+    if (targetIndex !== null) {
+      this.selectRepositoryTab(tabs[targetIndex], true)
+      event.preventDefault()
+    }
+  }
+
+  private onTabButtonRef = (
+    repositoryId: number,
+    button: HTMLButtonElement | null
+  ) => {
+    if (button === null) {
+      this.tabButtonRefs.delete(repositoryId)
+    } else {
+      this.tabButtonRefs.set(repositoryId, button)
     }
   }
 
@@ -107,16 +179,21 @@ export class RepositoryTabs extends React.Component<
         return
       }
 
-      const ids = [...this.props.openRepositoryTabIDs]
-      const from = ids.indexOf(dragId)
-      const to = ids.indexOf(targetRepositoryId)
-      if (from === -1 || to === -1) {
+      const targetBounds = event.currentTarget.getBoundingClientRect()
+      const position =
+        event.clientX < targetBounds.left + targetBounds.width / 2
+          ? 'before'
+          : 'after'
+      const next = reorderRepositoryTabIDs(
+        this.props.openRepositoryTabIDs,
+        dragId,
+        targetRepositoryId,
+        position
+      )
+      if (next === null) {
         return
       }
 
-      const next = [...ids]
-      const [removed] = next.splice(from, 1)
-      next.splice(to, 0, removed)
       void this.props.dispatcher.reorderRepositoryTabs(next)
     }
 
@@ -153,7 +230,7 @@ export class RepositoryTabs extends React.Component<
             const ab = localState?.aheadBehind
             const hasLocalChanges =
               (localState?.changedFilesCount ?? 0) > 0 ||
-              (ab != null && (ab.ahead > 0 || ab.behind > 0))
+              (ab != null && ab.ahead > 0)
 
             const dropHighlight = this.state.dragOverTabId === repositoryId
 
@@ -170,14 +247,19 @@ export class RepositoryTabs extends React.Component<
                 onDrop={this.onTabDrop(repositoryId)}
               >
                 <button
+                  ref={button => this.onTabButtonRef(repositoryId, button)}
                   type="button"
                   className="repository-tab-button"
                   role="tab"
                   aria-selected={selected}
+                  aria-keyshortcuts="Delete"
                   tabIndex={selected ? 0 : -1}
                   draggable
                   onDragStart={this.onTabDragStart(repositoryId)}
                   onClick={() => this.onTabClick(repositoryId)}
+                  onKeyDown={event =>
+                    this.onTabKeyDown(event, repositoryId)
+                  }
                 >
                   {hasLocalChanges ? (
                     <span
@@ -191,6 +273,7 @@ export class RepositoryTabs extends React.Component<
                   type="button"
                   className="repository-tab-close"
                   aria-label={`Close ${title}`}
+                  tabIndex={selected ? 0 : -1}
                   onClick={e => this.onCloseClick(e, repositoryId)}
                 >
                   <Octicon symbol={octicons.x} />

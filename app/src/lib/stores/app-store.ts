@@ -231,6 +231,7 @@ import { promiseWithMinimumTimeout } from '../promise'
 import { BackgroundFetcher } from './helpers/background-fetcher'
 import {
   cleanupOpenRepositoryTabIDs,
+  hasSavedOpenRepositoryTabIDs,
   loadOpenRepositoryTabIDs,
   saveOpenRepositoryTabIDs,
 } from './helpers/open-repository-tabs-storage'
@@ -935,9 +936,15 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.accountsStore.onDidError(error => this.emitError(error))
 
     this.repositoriesStore.onDidUpdate(updateRepositories => {
+      const selectedTabIndex =
+        this.selectedRepository === null
+          ? -1
+          : this.openRepositoryTabIDs.indexOf(this.selectedRepository.id)
       this.repositories = updateRepositories
       this.cleanupOpenRepositoryTabs(false)
-      this.updateRepositorySelectionAfterRepositoriesChanged()
+      this.updateRepositorySelectionAfterRepositoriesChanged(
+        selectedTabIndex === -1 ? null : selectedTabIndex
+      )
       this.emitUpdate()
     })
 
@@ -2217,19 +2224,37 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.accounts = accounts
     this.repositories = repositories
 
+    const hadSavedRepositoryTabs = hasSavedOpenRepositoryTabIDs()
+    const savedRepositoryTabIDs = loadOpenRepositoryTabIDs()
     this.openRepositoryTabIDs = cleanupOpenRepositoryTabIDs(
-      loadOpenRepositoryTabIDs(),
+      savedRepositoryTabIDs,
       this.repositories
     )
-    if (this.openRepositoryTabIDs.length === 0) {
+
+    if (
+      hadSavedRepositoryTabs &&
+      (savedRepositoryTabIDs.length !== this.openRepositoryTabIDs.length ||
+        savedRepositoryTabIDs.some(
+          (id, index) => this.openRepositoryTabIDs[index] !== id
+        ))
+    ) {
+      saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+    }
+
+    if (!hadSavedRepositoryTabs) {
       const lastSelectedID = getNumber(LastSelectedRepositoryIDKey, 0)
-      if (lastSelectedID > 0) {
-        const exists = this.repositories.some(r => r.id === lastSelectedID)
-        if (exists) {
-          this.openRepositoryTabIDs = [lastSelectedID]
-          saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
-        }
-      }
+      const initialRepository =
+        this.repositories.find(
+          r => r instanceof Repository && r.id === lastSelectedID
+        ) ??
+        this.repositories.find(
+          (r): r is Repository => r instanceof Repository
+        ) ??
+        null
+
+      this.openRepositoryTabIDs =
+        initialRepository === null ? [] : [initialRepository.id]
+      saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
     }
 
     this.updateRepositorySelectionAfterRepositoriesChanged()
@@ -2651,7 +2676,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     })
   }
 
-  private updateRepositorySelectionAfterRepositoriesChanged() {
+  private updateRepositorySelectionAfterRepositoriesChanged(
+    removedTabIndex: number | null = null
+  ) {
     const selectedRepository = this.selectedRepository
     let newSelectedRepository: Repository | CloningRepository | null =
       this.selectedRepository
@@ -2666,16 +2693,25 @@ export class AppStore extends TypedBaseStore<IAppState> {
       newSelectedRepository = r
     }
 
-    if (newSelectedRepository === null && this.repositories.length > 0) {
+    if (
+      newSelectedRepository === null &&
+      this.openRepositoryTabIDs.length > 0
+    ) {
       const lastSelectedID = getNumber(LastSelectedRepositoryIDKey, 0)
-      if (lastSelectedID > 0) {
-        newSelectedRepository =
-          this.repositories.find(r => r.id === lastSelectedID) || null
-      }
+      const fallbackTabIndex =
+        removedTabIndex === null
+          ? 0
+          : removedTabIndex === 0
+            ? 0
+            : Math.min(removedTabIndex - 1, this.openRepositoryTabIDs.length - 1)
+      const fallbackTabID =
+        this.openRepositoryTabIDs.includes(lastSelectedID) &&
+        removedTabIndex === null
+          ? lastSelectedID
+          : this.openRepositoryTabIDs[fallbackTabIndex]
 
-      if (!newSelectedRepository) {
-        newSelectedRepository = this.repositories[0]
-      }
+      newSelectedRepository =
+        this.repositories.find(r => r.id === fallbackTabID) ?? null
     }
 
     const repositoryChanged =
@@ -8688,7 +8724,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
       this.repositories
     )
 
-    if (next.length === this.openRepositoryTabIDs.length) {
+    if (
+      next.length === this.openRepositoryTabIDs.length &&
+      next.every((id, index) => id === this.openRepositoryTabIDs[index])
+    ) {
       return
     }
 
@@ -8817,8 +8856,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
     orderedRepositoryIds: ReadonlyArray<number>
   ): Promise<void> {
     const current = new Set(this.openRepositoryTabIDs)
+    const ordered = new Set(orderedRepositoryIds)
     if (
       orderedRepositoryIds.length !== current.size ||
+      ordered.size !== current.size ||
       !orderedRepositoryIds.every(id => current.has(id))
     ) {
       return Promise.resolve()
