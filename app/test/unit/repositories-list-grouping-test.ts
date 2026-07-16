@@ -215,7 +215,16 @@ describe('repository list grouping', () => {
     const workFolder = new Folder(1, 'Work', 1)
     const personalFolder = new Folder(2, 'Personal', 0)
     const emptyFolder = new Folder(3, 'Empty', 2)
-    const workRepo = new Repository('work-repo', 1, null, false, null, {}, false, 1)
+    const workRepo = new Repository(
+      'work-repo',
+      1,
+      null,
+      false,
+      null,
+      {},
+      false,
+      1
+    )
 
     const grouped = groupRepositories(
       [workRepo],

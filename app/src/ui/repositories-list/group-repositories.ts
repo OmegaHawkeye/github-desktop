@@ -127,7 +127,9 @@ export function getFolderPathLabel(
   folder: Folder,
   folders: ReadonlyArray<Folder>
 ): string {
-  const foldersByID = new Map(folders.map(candidate => [candidate.id, candidate]))
+  const foldersByID = new Map(
+    folders.map(candidate => [candidate.id, candidate])
+  )
   const names = [folder.name]
   const seen = new Set<number>([folder.id])
   let parentID = folder.parentFolderID

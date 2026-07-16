@@ -419,7 +419,11 @@ export class RepositoriesStore extends TypedBaseStore<
   /** Rename an existing repository folder. */
   public async renameFolder(folder: Folder, name: string): Promise<void> {
     await this.db.transaction('rw', this.db.folders, async () => {
-      await this.assertFolderNameUniqueAmongSiblings(name, folder.parentFolderID, folder.id)
+      await this.assertFolderNameUniqueAmongSiblings(
+        name,
+        folder.parentFolderID,
+        folder.id
+      )
       await this.db.folders.update(folder.id, { name })
     })
 
@@ -566,8 +570,7 @@ export class RepositoriesStore extends TypedBaseStore<
         return
       }
 
-      const insertIndex =
-        position === 'before' ? targetIndex : targetIndex + 1
+      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
 
       const reordered = [...siblings]
       reordered.splice(insertIndex, 0, moved)
@@ -648,7 +651,9 @@ export class RepositoriesStore extends TypedBaseStore<
         f.name.toLowerCase() === lower
     )
     if (conflict) {
-      throw new Error('A folder with that name already exists in this location.')
+      throw new Error(
+        'A folder with that name already exists in this location.'
+      )
     }
   }
 

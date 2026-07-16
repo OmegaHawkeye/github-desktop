@@ -226,7 +226,8 @@ export class RepositoriesList extends React.Component<
     (repository: Repository) => () => this.onRepositoryDragStart(repository)
   )
   private getRepositoryDragElementRenderer = memoizeOne(
-    (repository: Repository) => () => this.onRenderRepositoryDragElement(repository)
+    (repository: Repository) => () =>
+      this.onRenderRepositoryDragElement(repository)
   )
   private getFolderDragStartHandler = memoizeOne(
     (folder: Folder) => () => this.onFolderDragStart(folder)
@@ -266,9 +267,15 @@ export class RepositoriesList extends React.Component<
       content = (
         <div
           className="repository-folder-drop-target repository-folder-section-drop-target"
-          onMouseEnter={this.onFolderSectionDropTargetMouseEnter(item.group.folder)}
-          onMouseMove={this.onFolderSectionDropTargetMouseMove(item.group.folder)}
-          onMouseLeave={this.onFolderSectionDropTargetMouseLeave(item.group.folder)}
+          onMouseEnter={this.onFolderSectionDropTargetMouseEnter(
+            item.group.folder
+          )}
+          onMouseMove={this.onFolderSectionDropTargetMouseMove(
+            item.group.folder
+          )}
+          onMouseLeave={this.onFolderSectionDropTargetMouseLeave(
+            item.group.folder
+          )}
           onMouseUp={this.onFolderSectionDropTargetMouseUp(item.group.folder)}
         >
           {content}
@@ -384,7 +391,11 @@ export class RepositoriesList extends React.Component<
     const content = this.renderGroupHeaderContent(group, label)
 
     if (group.kind !== 'folder') {
-      return <div onContextMenu={this.getGroupContextMenuHandler(group)}>{content}</div>
+      return (
+        <div onContextMenu={this.getGroupContextMenuHandler(group)}>
+          {content}
+        </div>
+      )
     }
 
     return (
@@ -405,10 +416,7 @@ export class RepositoriesList extends React.Component<
     )
   }
 
-  private renderGroupHeaderContent(
-    group: RepositoryListGroup,
-    label: string
-  ) {
+  private renderGroupHeaderContent(group: RepositoryListGroup, label: string) {
     const activeDropTarget =
       group.kind === 'folder' &&
       this.state.activeFolderDropTarget?.folderID === group.folder.id

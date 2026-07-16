@@ -8,10 +8,7 @@ import {
   DefaultShellLabel,
 } from '../lib/context-menu'
 import { Folder } from '../../models/folder'
-import {
-  getFolderPathLabel,
-  getFoldersInTreeOrder,
-} from './group-repositories'
+import { getFolderPathLabel, getFoldersInTreeOrder } from './group-repositories'
 
 interface IRepositoryListItemContextMenuConfig {
   repository: Repositoryish

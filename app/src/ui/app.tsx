@@ -1027,7 +1027,6 @@ export class App extends React.Component<IAppProps, IAppState> {
     document.addEventListener('focus', this.onDocumentFocus, {
       capture: true,
     })
-
   }
 
   private onDocumentFocus = (event: FocusEvent) => {
@@ -2895,9 +2894,7 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case DragType.RepositoryFolder:
-        return (
-          <RepositoryListDragElement folder={currentDragElement.folder} />
-        )
+        return <RepositoryListDragElement folder={currentDragElement.folder} />
       default:
         return assertNever(
           currentDragElement,

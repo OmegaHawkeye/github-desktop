@@ -111,7 +111,9 @@ describe('RepositoriesStore', () => {
 
       assert.deepEqual(await repositoriesStore.getAllFolders(), [])
       assert.deepEqual(
-        (await repositoriesStore.getAll()).map(repository => repository.folderID),
+        (await repositoriesStore.getAll()).map(
+          repository => repository.folderID
+        ),
         [null, null]
       )
     })

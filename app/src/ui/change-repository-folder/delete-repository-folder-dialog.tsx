@@ -30,9 +30,7 @@ export class DeleteRepositoryFolder extends React.Component<
       <Dialog
         id="delete-repository-folder"
         title={
-          __DARWIN__
-            ? 'Delete Repository Folder'
-            : 'Delete repository folder'
+          __DARWIN__ ? 'Delete Repository Folder' : 'Delete repository folder'
         }
         type="warning"
         role="alertdialog"

@@ -50,7 +50,6 @@ describe('repository list drag and drop', () => {
       type: DragType.Repository,
       repository,
     })
-
     ;(list as any).onFolderDropTargetMouseUp(folder)({
       clientY: 10,
       currentTarget: {
@@ -71,7 +70,6 @@ describe('repository list drag and drop', () => {
       type: DragType.Repository,
       repository,
     })
-
     ;(list as any).onFolderDropTargetMouseUp(folder)({
       clientY: 1,
       currentTarget: {
@@ -100,7 +98,6 @@ describe('repository list drag and drop', () => {
       type: DragType.Repository,
       repository,
     })
-
     ;(list as any).onFolderDropTargetMouseUp(folder)({
       clientY: 10,
       currentTarget: {
@@ -121,7 +118,6 @@ describe('repository list drag and drop', () => {
       type: DragType.Repository,
       repository,
     })
-
     ;(list as any).onFolderSectionDropTargetMouseUp(folder)({})
 
     assert.deepEqual(repositoryFolderUpdates, [[repository.id, folder.id]])
@@ -141,7 +137,6 @@ describe('repository list drag and drop', () => {
       type: DragType.RepositoryFolder,
       folder: workFolder,
     })
-
     ;(list as any).onFolderDropTargetMouseUp(teamFolder)({
       clientY: 18,
       currentTarget: {
@@ -149,7 +144,9 @@ describe('repository list drag and drop', () => {
       },
     })
 
-    assert.deepEqual(folderMoves, [{ movedId: 1, targetId: 3, position: 'after' }])
+    assert.deepEqual(folderMoves, [
+      { movedId: 1, targetId: 3, position: 'after' },
+    ])
   })
 
   it('collapses folder groups to header-only when requested', () => {
@@ -192,11 +189,7 @@ describe('repository list drag and drop', () => {
       false,
       child.id
     )
-    const { list } = createList(
-      [parent, child],
-      [repository],
-      [parent.id]
-    )
+    const { list } = createList([parent, child], [repository], [parent.id])
 
     const groups = (list as any).getRepositoryGroups(
       [repository],
@@ -226,7 +219,10 @@ function createList(
   }>()
 
   const dispatcher = {
-    updateRepositoryFolder: (repository: Repository, folderID: number | null) => {
+    updateRepositoryFolder: (
+      repository: Repository,
+      folderID: number | null
+    ) => {
       repositoryFolderUpdates.push([repository.id, folderID])
       return Promise.resolve()
     },
