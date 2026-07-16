@@ -479,6 +479,12 @@ export class RepositoriesStore extends TypedBaseStore<
         throw new Error('Cannot move a folder into itself or its descendant.')
       }
 
+      await this.assertFolderNameUniqueAmongSiblings(
+        folder.name,
+        newParentFolderID,
+        folder.id
+      )
+
       const siblings = all.filter(
         f =>
           (f.parentFolderID ?? null) === (newParentFolderID ?? null) &&
@@ -516,6 +522,11 @@ export class RepositoriesStore extends TypedBaseStore<
         if (this.newParentWouldBeInsideMovedFolder(byId, moved.id, target.id)) {
           throw new Error('Cannot move a folder into itself or its descendant.')
         }
+        await this.assertFolderNameUniqueAmongSiblings(
+          moved.name,
+          target.id,
+          moved.id
+        )
         const children = all.filter(
           f => (f.parentFolderID ?? null) === target.id
         )
@@ -535,6 +546,12 @@ export class RepositoriesStore extends TypedBaseStore<
       ) {
         throw new Error('Cannot move a folder into itself or its descendant.')
       }
+
+      await this.assertFolderNameUniqueAmongSiblings(
+        moved.name,
+        newParentId,
+        moved.id
+      )
 
       const siblings = all
         .filter(

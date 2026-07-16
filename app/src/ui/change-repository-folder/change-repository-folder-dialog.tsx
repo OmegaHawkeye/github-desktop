@@ -3,7 +3,7 @@ import * as React from 'react'
 import { Dispatcher } from '../dispatcher'
 import { Repository } from '../../models/repository'
 import { Folder } from '../../models/folder'
-import { Dialog, DialogContent, DialogFooter } from '../dialog'
+import { Dialog, DialogContent, DialogError, DialogFooter } from '../dialog'
 import { OkCancelButtonGroup } from '../dialog/ok-cancel-button-group'
 import { TextBox } from '../lib/text-box'
 
@@ -17,6 +17,8 @@ interface IChangeRepositoryFolderProps {
 
 interface IChangeRepositoryFolderState {
   readonly name: string
+  readonly isSubmitting: boolean
+  readonly error: string | null
 }
 
 export class ChangeRepositoryFolder extends React.Component<
@@ -28,6 +30,8 @@ export class ChangeRepositoryFolder extends React.Component<
 
     this.state = {
       name: props.folder?.name ?? props.initialName ?? '',
+      isSubmitting: false,
+      error: null,
     }
   }
 
@@ -43,7 +47,13 @@ export class ChangeRepositoryFolder extends React.Component<
         }
         onDismissed={this.props.onDismissed}
         onSubmit={this.onSubmit}
+        disabled={this.state.isSubmitting}
+        dismissDisabled={this.state.isSubmitting}
+        loading={this.state.isSubmitting}
       >
+        {this.state.error !== null && (
+          <DialogError>{this.state.error}</DialogError>
+        )}
         <DialogContent>
           <p>
             <TextBox
@@ -57,7 +67,9 @@ export class ChangeRepositoryFolder extends React.Component<
         <DialogFooter>
           <OkCancelButtonGroup
             okButtonText={__DARWIN__ ? `${verb} Folder` : `${verb} folder`}
-            okButtonDisabled={this.state.name.trim().length === 0}
+            okButtonDisabled={
+              this.state.name.trim().length === 0 || this.state.isSubmitting
+            }
           />
         </DialogFooter>
       </Dialog>
@@ -65,7 +77,7 @@ export class ChangeRepositoryFolder extends React.Component<
   }
 
   private onNameChanged = (name: string) => {
-    this.setState({ name })
+    this.setState({ name, error: null })
   }
 
   private onSubmit = async () => {
@@ -74,18 +86,34 @@ export class ChangeRepositoryFolder extends React.Component<
       return
     }
 
-    if (this.props.folder) {
-      await this.props.dispatcher.renameRepositoryFolder(this.props.folder, name)
-    } else {
-      const folder = await this.props.dispatcher.createRepositoryFolder(name)
-      if (this.props.repository) {
-        await this.props.dispatcher.updateRepositoryFolder(
-          this.props.repository,
-          folder.id
-        )
-      }
-    }
+    this.setState({ isSubmitting: true, error: null })
 
-    this.props.onDismissed()
+    try {
+      if (this.props.folder) {
+        await this.props.dispatcher.renameRepositoryFolder(
+          this.props.folder,
+          name
+        )
+      } else {
+        const folder =
+          await this.props.dispatcher.createRepositoryFolder(name)
+        if (this.props.repository) {
+          await this.props.dispatcher.updateRepositoryFolder(
+            this.props.repository,
+            folder.id
+          )
+        }
+      }
+
+      this.props.onDismissed()
+    } catch (error) {
+      this.setState({
+        isSubmitting: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Unable to save the repository folder.',
+      })
+    }
   }
 }

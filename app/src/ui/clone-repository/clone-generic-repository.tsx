@@ -6,6 +6,10 @@ import { DialogContent } from '../dialog'
 import { Ref } from '../lib/ref'
 import { Select } from '../lib/select'
 import { Folder } from '../../models/folder'
+import {
+  getFolderPathLabel,
+  getFoldersInTreeOrder,
+} from '../repositories-list/group-repositories'
 
 interface ICloneGenericRepositoryProps {
   /** The URL to clone. */
@@ -70,9 +74,9 @@ export class CloneGenericRepository extends React.Component<
             onChange={this.onFolderChanged}
           >
             <option value="">No folder</option>
-            {this.props.folders.map(folder => (
+            {getFoldersInTreeOrder(this.props.folders).map(folder => (
               <option key={folder.id} value={folder.id.toString()}>
-                {folder.name}
+                {getFolderPathLabel(folder, this.props.folders)}
               </option>
             ))}
           </Select>

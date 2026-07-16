@@ -96,6 +96,51 @@ describe('RepositoriesStore', () => {
       assert.equal(repositories[0].folderID, null)
       assert.equal(repositories[0].id, repository.id)
     })
+
+    it('removes nested folders and all descendant assignments', async () => {
+      const parent = await repositoriesStore.createFolder('Parent')
+      const child = await repositoriesStore.createFolder('Child', parent.id)
+      await repositoriesStore.addRepository('/parent/repo', {
+        folderID: parent.id,
+      })
+      await repositoriesStore.addRepository('/child/repo', {
+        folderID: child.id,
+      })
+
+      await repositoriesStore.deleteFolder(parent)
+
+      assert.deepEqual(await repositoriesStore.getAllFolders(), [])
+      assert.deepEqual(
+        (await repositoriesStore.getAll()).map(repository => repository.folderID),
+        [null, null]
+      )
+    })
+
+    it('rejects moves that create duplicate sibling names', async () => {
+      const parent = await repositoriesStore.createFolder('Parent')
+      await repositoriesStore.createFolder('Personal', parent.id)
+      const moved = await repositoriesStore.createFolder('Personal')
+
+      await assert.rejects(
+        repositoriesStore.moveFolderRelativeTo(moved, parent, 'into'),
+        /already exists/
+      )
+
+      const persistedMoved = (await repositoriesStore.getAllFolders()).find(
+        folder => folder.id === moved.id
+      )
+      assert.equal(persistedMoved?.parentFolderID, null)
+    })
+
+    it('rejects moving a folder into its descendant', async () => {
+      const parent = await repositoriesStore.createFolder('Parent')
+      const child = await repositoriesStore.createFolder('Child', parent.id)
+
+      await assert.rejects(
+        repositoriesStore.moveFolderRelativeTo(parent, child, 'into'),
+        /descendant/
+      )
+    })
   })
 
   describe('updating a GitHub repository', () => {

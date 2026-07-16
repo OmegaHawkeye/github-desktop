@@ -138,6 +138,7 @@ import classNames from 'classnames'
 import { MoveToApplicationsFolder } from './move-to-applications-folder'
 import { ChangeRepositoryAlias } from './change-repository-alias/change-repository-alias-dialog'
 import { ChangeRepositoryFolder } from './change-repository-folder/change-repository-folder-dialog'
+import { DeleteRepositoryFolder } from './change-repository-folder/delete-repository-folder-dialog'
 import { ThankYou } from './thank-you'
 import {
   getUserContributions,
@@ -2070,7 +2071,6 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             tagName={popup.tagName}
-            canDeleteRemote={popup.canDeleteRemote}
           />
         )
       }
@@ -2132,6 +2132,15 @@ export class App extends React.Component<IAppProps, IAppState> {
       case PopupType.RenameRepositoryFolder: {
         return (
           <ChangeRepositoryFolder
+            dispatcher={this.props.dispatcher}
+            folder={popup.folder}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.DeleteRepositoryFolder: {
+        return (
+          <DeleteRepositoryFolder
             dispatcher={this.props.dispatcher}
             folder={popup.folder}
             onDismissed={onPopupDismissedFn}
@@ -3245,10 +3254,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         dispatcher={this.props.dispatcher}
         repository={selection.repository}
         aheadBehind={state.aheadBehind}
-        numTagsToPush={
-          (state.tagsToPush?.length ?? 0) +
-          (state.tagsToDeleteOnRemote?.length ?? 0)
-        }
+        numTagsToPush={state.tagsToPush !== null ? state.tagsToPush.length : 0}
         remoteName={remoteName}
         lastFetched={state.lastFetched}
         networkActionInProgress={state.isPushPullFetchInProgress}

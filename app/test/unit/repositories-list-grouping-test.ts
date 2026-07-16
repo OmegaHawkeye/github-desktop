@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { groupRepositories } from '../../src/ui/repositories-list/group-repositories'
+import {
+  getFolderPathLabel,
+  getFoldersInTreeOrder,
+  groupRepositories,
+} from '../../src/ui/repositories-list/group-repositories'
 import { Repository, ILocalRepositoryState } from '../../src/models/repository'
 import { CloningRepository } from '../../src/models/cloning-repository'
 import { gitHubRepoFixture } from '../helpers/github-repo-builder'
@@ -271,6 +275,19 @@ describe('repository list grouping', () => {
     assert.equal(grouped[1].identifier.kind, 'folder')
     assert.equal((grouped[1].identifier as any).folder.name, 'Child')
     assert.equal((grouped[1].identifier as any).depth, 1)
+  })
+
+  it('orders and labels nested folders with their ancestors', () => {
+    const parent = new Folder(1, 'Parent', 1)
+    const first = new Folder(2, 'First', 0)
+    const child = new Folder(3, 'Child', 0, parent.id)
+    const folders = [parent, child, first]
+
+    assert.deepEqual(
+      getFoldersInTreeOrder(folders).map(folder => folder.name),
+      ['First', 'Parent', 'Child']
+    )
+    assert.equal(getFolderPathLabel(child, folders), 'Parent / Child')
   })
 
   it('places reassigned repositories in the target folder group', () => {

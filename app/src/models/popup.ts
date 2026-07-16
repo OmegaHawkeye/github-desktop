@@ -80,6 +80,7 @@ export enum PopupType {
   ChangeRepositoryAlias = 'ChangeRepositoryAlias',
   CreateRepositoryFolder = 'CreateRepositoryFolder',
   RenameRepositoryFolder = 'RenameRepositoryFolder',
+  DeleteRepositoryFolder = 'DeleteRepositoryFolder',
   ThankYou = 'ThankYou',
   CommitMessage = 'CommitMessage',
   MultiCommitOperation = 'MultiCommitOperation',
@@ -317,6 +318,7 @@ export type PopupDetail =
       initialName?: string
     }
   | { type: PopupType.RenameRepositoryFolder; folder: Folder }
+  | { type: PopupType.DeleteRepositoryFolder; folder: Folder }
   | {
       type: PopupType.ThankYou
       userContributions: ReadonlyArray<ReleaseNote>

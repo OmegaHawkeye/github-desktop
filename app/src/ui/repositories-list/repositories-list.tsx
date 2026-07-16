@@ -104,19 +104,6 @@ interface IActiveFolderDropTarget {
   readonly position?: FolderDropPosition
 }
 
-function repositoryDropAllowed(
-  repository: Repository,
-  folder: Folder,
-  position: FolderDropPosition
-) {
-  if (position === 'into') {
-    return canDropRepositoryIntoFolder(repository, folder)
-  }
-  return (
-    (repository.folderID ?? null) !== (folder.parentFolderID ?? null)
-  )
-}
-
 const RowHeight = 29
 
 /**
@@ -167,17 +154,24 @@ function getVisibleRepositoryGroups(
   folders: ReadonlyArray<Folder>
 ) {
   const collapsedFolderIDSet = new Set(collapsedFolderIDs)
-  return groups.map(group => {
-    if (group.identifier.kind !== 'folder') {
-      return group
-    }
-    if (isFolderHiddenByCollapsedAncestor(group.identifier.folder, folders, collapsedFolderIDSet)) {
-      return { ...group, items: [] }
-    }
-    return collapsedFolderIDSet.has(group.identifier.folder.id)
-      ? { ...group, items: [] }
-      : group
-  })
+  return groups
+    .filter(
+      group =>
+        group.identifier.kind !== 'folder' ||
+        !isFolderHiddenByCollapsedAncestor(
+          group.identifier.folder,
+          folders,
+          collapsedFolderIDSet
+        )
+    )
+    .map(group => {
+      if (group.identifier.kind !== 'folder') {
+        return group
+      }
+      return collapsedFolderIDSet.has(group.identifier.folder.id)
+        ? { ...group, items: [] }
+        : group
+    })
 }
 
 /** The list of user-added repositories. */
@@ -468,6 +462,7 @@ export class RepositoriesList extends React.Component<
           onMouseDown={this.onFolderDisclosureMouseDown}
           onClick={this.onToggleFolderCollapsed(group.folder)}
           aria-expanded={!isCollapsed}
+          aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${label}`}
         >
           <Octicon
             symbol={isCollapsed ? octicons.chevronRight : octicons.chevronDown}
@@ -595,17 +590,7 @@ export class RepositoriesList extends React.Component<
       )
 
       if (dragData.type === DragType.Repository) {
-        if (!repositoryDropAllowed(dragData.repository, folder, position)) {
-          return
-        }
-        if (position === 'into') {
-          this.dropRepositoryIntoFolder(folder)
-        } else {
-          this.props.dispatcher.updateRepositoryFolder(
-            dragData.repository,
-            folder.parentFolderID ?? null
-          )
-        }
+        this.dropRepositoryIntoFolder(folder)
         return
       }
 
@@ -619,7 +604,10 @@ export class RepositoriesList extends React.Component<
 
       void this.props.dispatcher
         .moveFolderRelativeTo(dragData.folder, folder, position)
-        .catch(err => log.error('Failed to move repository folder', err))
+        .catch(err => {
+          log.error('Failed to move repository folder', err)
+          return this.props.dispatcher.presentError(err)
+        })
     }
 
   private updateActiveFolderDropTarget(
@@ -631,13 +619,8 @@ export class RepositoriesList extends React.Component<
       return
     }
 
-    const position = getFolderDropPosition(
-      event.currentTarget.getBoundingClientRect(),
-      event.clientY
-    )
-
     if (dragData.type === DragType.Repository) {
-      this.updateRepositoryFolderDropTarget(folder, position)
+      this.updateRepositoryFolderDropTarget(folder)
       return
     }
 
@@ -647,6 +630,11 @@ export class RepositoriesList extends React.Component<
     ) {
       return
     }
+
+    const position = getFolderDropPosition(
+      event.currentTarget.getBoundingClientRect(),
+      event.clientY
+    )
 
     dragAndDropManager.emitEnterDropTarget({
       type: DropTargetType.RepositoryFolder,
@@ -661,15 +649,12 @@ export class RepositoriesList extends React.Component<
     })
   }
 
-  private updateRepositoryFolderDropTarget(
-    folder: Folder,
-    position: FolderDropPosition
-  ) {
+  private updateRepositoryFolderDropTarget(folder: Folder) {
     const dragData = dragAndDropManager.dragData
     if (
       dragData === null ||
       dragData.type !== DragType.Repository ||
-      !repositoryDropAllowed(dragData.repository, folder, position)
+      !canDropRepositoryIntoFolder(dragData.repository, folder)
     ) {
       return
     }
@@ -682,7 +667,6 @@ export class RepositoriesList extends React.Component<
       activeFolderDropTarget: {
         folderID: folder.id,
         kind: 'repository',
-        position,
       },
     })
   }
@@ -835,9 +819,12 @@ export class RepositoriesList extends React.Component<
           }),
       },
       {
-        label: __DARWIN__ ? 'Delete Folder' : 'Delete folder',
+        label: __DARWIN__ ? 'Delete Folder…' : 'Delete folder…',
         action: () =>
-          this.props.dispatcher.deleteRepositoryFolder(group.folder),
+          this.props.dispatcher.showPopup({
+            type: PopupType.DeleteRepositoryFolder,
+            folder: group.folder,
+          }),
       },
     ])
   }

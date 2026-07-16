@@ -122,6 +122,29 @@ export function getFoldersInTreeOrder(
   return result
 }
 
+/** A folder label that includes its ancestors for disambiguation. */
+export function getFolderPathLabel(
+  folder: Folder,
+  folders: ReadonlyArray<Folder>
+): string {
+  const foldersByID = new Map(folders.map(candidate => [candidate.id, candidate]))
+  const names = [folder.name]
+  const seen = new Set<number>([folder.id])
+  let parentID = folder.parentFolderID
+
+  while (parentID !== null && !seen.has(parentID)) {
+    seen.add(parentID)
+    const parent = foldersByID.get(parentID)
+    if (parent === undefined) {
+      break
+    }
+    names.unshift(parent.name)
+    parentID = parent.parentFolderID
+  }
+
+  return names.join(' / ')
+}
+
 const getGroupForRepository = (
   repo: Repositoryish,
   foldersByID: ReadonlyMap<number, Folder>

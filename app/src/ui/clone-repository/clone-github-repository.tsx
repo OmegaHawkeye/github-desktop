@@ -11,6 +11,10 @@ import { ClickSource } from '../lib/list'
 import { AccountPicker } from '../account-picker'
 import { Select } from '../lib/select'
 import { Folder } from '../../models/folder'
+import {
+  getFolderPathLabel,
+  getFoldersInTreeOrder,
+} from '../repositories-list/group-repositories'
 
 interface ICloneGithubRepositoryProps {
   /** The account to clone from. */
@@ -138,9 +142,9 @@ export class CloneGithubRepository extends React.PureComponent<ICloneGithubRepos
             onChange={this.onFolderChanged}
           >
             <option value="">No folder</option>
-            {this.props.folders.map(folder => (
+            {getFoldersInTreeOrder(this.props.folders).map(folder => (
               <option key={folder.id} value={folder.id.toString()}>
-                {folder.name}
+                {getFolderPathLabel(folder, this.props.folders)}
               </option>
             ))}
           </Select>

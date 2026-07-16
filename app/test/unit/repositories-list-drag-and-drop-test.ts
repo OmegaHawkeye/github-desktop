@@ -62,6 +62,26 @@ describe('repository list drag and drop', () => {
     assert.equal(canDropRepositoryIntoFolder(repository, folder), true)
   })
 
+  it('moves repositories into a folder from every header drop zone', () => {
+    const folder = new Folder(1, 'Work', 0)
+    const repository = new Repository('/work/repo', 1, null, false)
+    const { list, repositoryFolderUpdates } = createList([folder])
+
+    dragAndDropManager.setDragData({
+      type: DragType.Repository,
+      repository,
+    })
+
+    ;(list as any).onFolderDropTargetMouseUp(folder)({
+      clientY: 1,
+      currentTarget: {
+        getBoundingClientRect: () => ({ top: 0, height: 20 }),
+      },
+    })
+
+    assert.deepEqual(repositoryFolderUpdates, [[repository.id, folder.id]])
+  })
+
   it('ignores repository drops onto the current folder', () => {
     const folder = new Folder(1, 'Work', 0)
     const repository = new Repository(
@@ -158,6 +178,39 @@ describe('repository list drag and drop', () => {
     assert.equal(groups[0].identifier.kind, 'folder')
     assert.equal(groups[0].items.length, 0)
   })
+
+  it('hides descendant folder groups when a parent is collapsed', () => {
+    const parent = new Folder(1, 'Parent', 0)
+    const child = new Folder(2, 'Child', 0, parent.id)
+    const repository = new Repository(
+      '/work/repo',
+      1,
+      null,
+      false,
+      null,
+      {},
+      false,
+      child.id
+    )
+    const { list } = createList(
+      [parent, child],
+      [repository],
+      [parent.id]
+    )
+
+    const groups = (list as any).getRepositoryGroups(
+      [repository],
+      [parent, child],
+      new Map(),
+      [],
+      [parent.id],
+      true
+    )
+
+    assert.equal(groups.length, 1)
+    assert.equal(groups[0].identifier.folder.id, parent.id)
+    assert.equal(groups[0].items.length, 0)
+  })
 })
 
 function createList(
@@ -199,6 +252,7 @@ function createList(
     deleteRepositoryFolder: () => Promise.resolve(),
     changeRepositoryAlias: () => Promise.resolve(),
     toggleCollapsedRepositoryFolder: () => Promise.resolve(),
+    presentError: () => Promise.resolve(),
   }
 
   const list = new RepositoriesList({
