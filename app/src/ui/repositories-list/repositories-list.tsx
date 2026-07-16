@@ -553,13 +553,13 @@ export class RepositoriesList extends React.Component<
     }
 
   private onFolderSectionDropTargetMouseEnter =
-    (folder: Folder) => (event: React.MouseEvent<HTMLDivElement>) => {
-      this.updateRepositoryFolderDropTarget(folder, 'into')
+    (folder: Folder) => (_event: React.MouseEvent<HTMLDivElement>) => {
+      this.updateRepositoryFolderDropTarget(folder)
     }
 
   private onFolderSectionDropTargetMouseMove =
-    (folder: Folder) => (event: React.MouseEvent<HTMLDivElement>) => {
-      this.updateRepositoryFolderDropTarget(folder, 'into')
+    (folder: Folder) => (_event: React.MouseEvent<HTMLDivElement>) => {
+      this.updateRepositoryFolderDropTarget(folder)
     }
 
   private onFolderSectionDropTargetMouseLeave =
