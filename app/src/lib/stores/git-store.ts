@@ -362,6 +362,7 @@ export class GitStore extends BaseStore {
   }
 
   public async deleteTag(name: string, removeFromRemote = false) {
+    const wasPendingPush = this._tagsToPush.includes(name)
     const deletedLocally = await this.performFailableOperation(async () => {
       await deleteTag(this.repository, name)
       return true
@@ -372,7 +373,6 @@ export class GitStore extends BaseStore {
     }
 
     await this.refreshTags()
-    const wasPendingPush = this._tagsToPush.includes(name)
     this.removeTagToPush(name)
 
     if (removeFromRemote && !wasPendingPush) {
