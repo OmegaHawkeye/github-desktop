@@ -1027,6 +1027,7 @@ export class App extends React.Component<IAppProps, IAppState> {
     document.addEventListener('focus', this.onDocumentFocus, {
       capture: true,
     })
+
   }
 
   private onDocumentFocus = (event: FocusEvent) => {
@@ -2070,6 +2071,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             tagName={popup.tagName}
+            canDeleteRemote={popup.canDeleteRemote}
           />
         )
       }
@@ -2894,7 +2896,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case DragType.RepositoryFolder:
-        return <RepositoryListDragElement folder={currentDragElement.folder} />
+        return (
+          <RepositoryListDragElement folder={currentDragElement.folder} />
+        )
       default:
         return assertNever(
           currentDragElement,
@@ -3251,7 +3255,10 @@ export class App extends React.Component<IAppProps, IAppState> {
         dispatcher={this.props.dispatcher}
         repository={selection.repository}
         aheadBehind={state.aheadBehind}
-        numTagsToPush={state.tagsToPush !== null ? state.tagsToPush.length : 0}
+        numTagsToPush={
+          (state.tagsToPush?.length ?? 0) +
+          (state.tagsToDeleteOnRemote?.length ?? 0)
+        }
         remoteName={remoteName}
         lastFetched={state.lastFetched}
         networkActionInProgress={state.isPushPullFetchInProgress}

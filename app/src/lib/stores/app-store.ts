@@ -1247,6 +1247,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       localTags: gitStore.localTags,
       aheadBehind: gitStore.aheadBehind,
       tagsToPush: gitStore.tagsToPush,
+      tagsToDeleteOnRemote: gitStore.tagsToDeleteOnRemote,
       remote: gitStore.currentRemote,
       lastFetched: gitStore.lastFetched,
     }))
@@ -4068,12 +4069,6 @@ export class AppStore extends TypedBaseStore<IAppState> {
     await gitStore.createTag(name, sha)
   }
 
-  /** This shouldn't be called directly. See `Dispatcher`. */
-  public async _deleteTag(repository: Repository, name: string) {
-    const gitStore = this.gitStoreCache.get(repository)
-    await gitStore.deleteTag(name)
-  }
-
   private updateCheckoutProgress(
     repository: Repository,
     checkoutProgress: ICheckoutProgress | null
@@ -4812,6 +4807,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
             gitStore.tagsToPush,
             {
               onHookFailure: this.onHookFailure(() => (aborted = true)),
+              tagsToDeleteOnRemote: gitStore.tagsToDeleteOnRemote,
               ...options,
             },
             progress => {
@@ -4828,6 +4824,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
           }
 
           gitStore.clearTagsToPush()
+          gitStore.clearTagsToDeleteOnRemote()
 
           await gitStore.fetchRemotes([safeRemote], false, fetchProgress => {
             this.updatePushPullFetchProgress(repository, {

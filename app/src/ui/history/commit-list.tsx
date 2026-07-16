@@ -890,7 +890,6 @@ export class CommitList extends React.Component<
 
   private getDeleteTagsMenuItem(commit: Commit): IMenuItem | null {
     const { onDeleteTag } = this.props
-    const unpushedTags = this.getUnpushedTags(commit)
 
     if (onDeleteTag === undefined || commit.tags.length === 0) {
       return null
@@ -902,11 +901,8 @@ export class CommitList extends React.Component<
       return {
         label: `Delete tag ${tagName}`,
         action: () => onDeleteTag(tagName),
-        enabled: unpushedTags.includes(tagName),
       }
     }
-
-    const unpushedTagsSet = new Set(unpushedTags)
 
     return {
       label: 'Delete tag…',
@@ -914,7 +910,6 @@ export class CommitList extends React.Component<
         return {
           label: tagName,
           action: () => onDeleteTag(tagName),
-          enabled: unpushedTagsSet.has(tagName),
         }
       }),
     }
