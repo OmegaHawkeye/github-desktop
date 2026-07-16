@@ -369,8 +369,11 @@ describe('GitStore', () => {
     })
 
     it('does not queue remote deletion for an unpushed tag', async t => {
-      const path = await setupFixtureRepository(t, 'test-repo-with-tags')
-      const repository = new Repository(path, -1, null, false)
+      const repository = await setupEmptyRepository(t)
+      await makeCommit(repository, {
+        commitMessage: 'initial commit',
+        entries: [{ path: 'README.md', contents: 'Hello world' }],
+      })
       const gitStore = new GitStore(repository, shell, new TestStatsStore())
 
       await gitStore.createTag('my-new-tag', 'HEAD')
