@@ -34,9 +34,9 @@ export class RepositoryTabs extends React.Component<
     this.state = { dragOverTabId: null }
   }
 
-  public componentDidUpdate(previousProps: IRepositoryTabsProps) {
+  public componentDidUpdate(prevProps: IRepositoryTabsProps) {
     const selectedRepositoryId = this.props.selectedRepository?.id
-    if (selectedRepositoryId === previousProps.selectedRepository?.id) {
+    if (selectedRepositoryId === prevProps.selectedRepository?.id) {
       return
     }
 
@@ -62,94 +62,86 @@ export class RepositoryTabs extends React.Component<
     }
   }
 
-  private onTabClick = (repositoryId: number) => {
+  private onTabClick = (repositoryId: number) => () =>
     this.selectRepositoryTab(repositoryId, false)
-  }
 
-  private onTabKeyDown = (
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    repositoryId: number
-  ) => {
-    const tabs = this.props.openRepositoryTabIDs
-    const currentIndex = tabs.indexOf(repositoryId)
-    if (currentIndex === -1) {
-      return
+  private onTabKeyDown =
+    (repositoryId: number) =>
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      const tabs = this.props.openRepositoryTabIDs
+      const currentIndex = tabs.indexOf(repositoryId)
+      if (currentIndex === -1) {
+        return
+      }
+
+      let targetIndex: number | null = null
+      if (event.key === 'ArrowLeft') {
+        targetIndex = (currentIndex - 1 + tabs.length) % tabs.length
+      } else if (event.key === 'ArrowRight') {
+        targetIndex = (currentIndex + 1) % tabs.length
+      } else if (event.key === 'Home') {
+        targetIndex = 0
+      } else if (event.key === 'End') {
+        targetIndex = tabs.length - 1
+      } else if (event.key === 'Delete') {
+        this.focusSelectedTabOnUpdate = true
+        this.props.dispatcher.closeRepositoryTab(repositoryId)
+        event.preventDefault()
+        return
+      }
+
+      if (targetIndex !== null) {
+        this.selectRepositoryTab(tabs[targetIndex], true)
+        event.preventDefault()
+      }
     }
 
-    let targetIndex: number | null = null
-    if (event.key === 'ArrowLeft') {
-      targetIndex = (currentIndex - 1 + tabs.length) % tabs.length
-    } else if (event.key === 'ArrowRight') {
-      targetIndex = (currentIndex + 1) % tabs.length
-    } else if (event.key === 'Home') {
-      targetIndex = 0
-    } else if (event.key === 'End') {
-      targetIndex = tabs.length - 1
-    } else if (event.key === 'Delete') {
-      this.focusSelectedTabOnUpdate = true
+  private onTabButtonRef =
+    (repositoryId: number) => (button: HTMLButtonElement | null) => {
+      if (button === null) {
+        this.tabButtonRefs.delete(repositoryId)
+      } else {
+        this.tabButtonRefs.set(repositoryId, button)
+      }
+    }
+
+  private onCloseClick =
+    (repositoryId: number) => (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation()
       this.props.dispatcher.closeRepositoryTab(repositoryId)
-      event.preventDefault()
-      return
     }
-
-    if (targetIndex !== null) {
-      this.selectRepositoryTab(tabs[targetIndex], true)
-      event.preventDefault()
-    }
-  }
-
-  private onTabButtonRef = (
-    repositoryId: number,
-    button: HTMLButtonElement | null
-  ) => {
-    if (button === null) {
-      this.tabButtonRefs.delete(repositoryId)
-    } else {
-      this.tabButtonRefs.set(repositoryId, button)
-    }
-  }
-
-  private onCloseClick = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    repositoryId: number
-  ) => {
-    event.stopPropagation()
-    this.props.dispatcher.closeRepositoryTab(repositoryId)
-  }
 
   private onOpenAnotherRepository = () => {
     this.props.dispatcher.showFoldout({ type: FoldoutType.Repository })
   }
 
-  private onTabContextMenu = (
-    event: React.MouseEvent,
-    repositoryId: number
-  ) => {
-    event.preventDefault()
+  private onTabContextMenu =
+    (repositoryId: number) => (event: React.MouseEvent) => {
+      event.preventDefault()
 
-    const items: ReadonlyArray<IMenuItem> = [
-      {
-        label: 'Close Tab',
-        action: () => {
-          this.props.dispatcher.closeRepositoryTab(repositoryId)
+      const items: ReadonlyArray<IMenuItem> = [
+        {
+          label: 'Close Tab',
+          action: () => {
+            this.props.dispatcher.closeRepositoryTab(repositoryId)
+          },
         },
-      },
-      {
-        label: 'Close Other Tabs',
-        action: () => {
-          this.props.dispatcher.closeOtherRepositoryTabs(repositoryId)
+        {
+          label: 'Close Other Tabs',
+          action: () => {
+            this.props.dispatcher.closeOtherRepositoryTabs(repositoryId)
+          },
         },
-      },
-      {
-        label: 'Close Tabs to the Right',
-        action: () => {
-          this.props.dispatcher.closeRepositoryTabsToRight(repositoryId)
+        {
+          label: 'Close Tabs to the Right',
+          action: () => {
+            this.props.dispatcher.closeRepositoryTabsToRight(repositoryId)
+          },
         },
-      },
-    ]
+      ]
 
-    showContextualMenu(items)
-  }
+      showContextualMenu(items)
+    }
 
   private onTabDragStart =
     (repositoryId: number) => (event: React.DragEvent) => {
@@ -157,17 +149,18 @@ export class RepositoryTabs extends React.Component<
       event.dataTransfer.effectAllowed = 'move'
     }
 
-  private onTabDragOver = (repositoryId: number) => (event: React.DragEvent) => {
-    const types = Array.from(event.dataTransfer.types)
-    if (!types.includes(tabDragType)) {
-      return
+  private onTabDragOver =
+    (repositoryId: number) => (event: React.DragEvent) => {
+      const types = Array.from(event.dataTransfer.types)
+      if (!types.includes(tabDragType)) {
+        return
+      }
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      if (this.state.dragOverTabId !== repositoryId) {
+        this.setState({ dragOverTabId: repositoryId })
+      }
     }
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    if (this.state.dragOverTabId !== repositoryId) {
-      this.setState({ dragOverTabId: repositoryId })
-    }
-  }
 
   private onTabDrop =
     (targetRepositoryId: number) => (event: React.DragEvent) => {
@@ -215,6 +208,7 @@ export class RepositoryTabs extends React.Component<
           className="repository-tabs-scroll"
           role="tablist"
           aria-label="Open repositories"
+          tabIndex={-1}
           onDragEnd={this.onTabStripDragEnd}
         >
           {openRepositoryTabIDs.map(repositoryId => {
@@ -242,30 +236,30 @@ export class RepositoryTabs extends React.Component<
                   'drop-target': dropHighlight,
                 })}
                 role="presentation"
-                onContextMenu={e => this.onTabContextMenu(e, repositoryId)}
+                onContextMenu={this.onTabContextMenu(repositoryId)}
                 onDragOver={this.onTabDragOver(repositoryId)}
                 onDrop={this.onTabDrop(repositoryId)}
               >
                 <button
-                  ref={button => this.onTabButtonRef(repositoryId, button)}
+                  ref={this.onTabButtonRef(repositoryId)}
                   type="button"
                   className="repository-tab-button"
                   role="tab"
                   aria-selected={selected}
+                  aria-label={
+                    hasLocalChanges
+                      ? `${title}, uncommitted or unpushed changes`
+                      : title
+                  }
                   aria-keyshortcuts="Delete"
                   tabIndex={selected ? 0 : -1}
-                  draggable
+                  draggable={true}
                   onDragStart={this.onTabDragStart(repositoryId)}
-                  onClick={() => this.onTabClick(repositoryId)}
-                  onKeyDown={event =>
-                    this.onTabKeyDown(event, repositoryId)
-                  }
+                  onClick={this.onTabClick(repositoryId)}
+                  onKeyDown={this.onTabKeyDown(repositoryId)}
                 >
                   {hasLocalChanges ? (
-                    <span
-                      className="repository-tab-dirty"
-                      title="Uncommitted or unpushed changes"
-                    />
+                    <span className="repository-tab-dirty" />
                   ) : null}
                   <span className="repository-tab-label">{title}</span>
                 </button>
@@ -274,7 +268,7 @@ export class RepositoryTabs extends React.Component<
                   className="repository-tab-close"
                   aria-label={`Close ${title}`}
                   tabIndex={selected ? 0 : -1}
-                  onClick={e => this.onCloseClick(e, repositoryId)}
+                  onClick={this.onCloseClick(repositoryId)}
                 >
                   <Octicon symbol={octicons.x} />
                 </button>
@@ -285,7 +279,6 @@ export class RepositoryTabs extends React.Component<
         <button
           type="button"
           className="repository-tabs-add"
-          title="Open another repository…"
           aria-label="Open another repository"
           onClick={this.onOpenAnotherRepository}
         >

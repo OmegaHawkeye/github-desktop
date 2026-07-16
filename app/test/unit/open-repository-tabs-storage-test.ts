@@ -36,21 +36,24 @@ describe('open repository tabs storage', () => {
   })
 
   it('reorders a tab before a target to its right', () => {
-    assert.deepEqual(reorderRepositoryTabIDs([1, 2, 3, 4], 1, 3, 'before'), [
-      2, 1, 3, 4,
-    ])
+    assert.deepEqual(
+      reorderRepositoryTabIDs([1, 2, 3, 4], 1, 3, 'before'),
+      [2, 1, 3, 4]
+    )
   })
 
   it('reorders a tab before a target on its left', () => {
-    assert.deepEqual(reorderRepositoryTabIDs([1, 2, 3, 4], 4, 2, 'before'), [
-      1, 4, 2, 3,
-    ])
+    assert.deepEqual(
+      reorderRepositoryTabIDs([1, 2, 3, 4], 4, 2, 'before'),
+      [1, 4, 2, 3]
+    )
   })
 
   it('reorders a tab after a target', () => {
-    assert.deepEqual(reorderRepositoryTabIDs([1, 2, 3, 4], 1, 4, 'after'), [
-      2, 3, 4, 1,
-    ])
+    assert.deepEqual(
+      reorderRepositoryTabIDs([1, 2, 3, 4], 1, 4, 'after'),
+      [2, 3, 4, 1]
+    )
   })
 
   it('does not reorder unknown or identical tabs', () => {

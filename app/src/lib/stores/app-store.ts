@@ -2699,11 +2699,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     ) {
       const lastSelectedID = getNumber(LastSelectedRepositoryIDKey, 0)
       const fallbackTabIndex =
-        removedTabIndex === null
+        removedTabIndex === null || removedTabIndex === 0
           ? 0
-          : removedTabIndex === 0
-            ? 0
-            : Math.min(removedTabIndex - 1, this.openRepositoryTabIDs.length - 1)
+          : Math.min(removedTabIndex - 1, this.openRepositoryTabIDs.length - 1)
       const fallbackTabID =
         this.openRepositoryTabIDs.includes(lastSelectedID) &&
         removedTabIndex === null
