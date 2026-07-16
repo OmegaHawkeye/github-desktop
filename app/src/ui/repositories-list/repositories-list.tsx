@@ -266,6 +266,7 @@ export class RepositoriesList extends React.Component<
     if (item.group.kind === 'folder') {
       content = (
         <div
+          role="presentation"
           className="repository-folder-drop-target repository-folder-section-drop-target"
           onMouseEnter={this.onFolderSectionDropTargetMouseEnter(
             item.group.folder
@@ -446,6 +447,7 @@ export class RepositoriesList extends React.Component<
     const depth = group.depth
     return (
       <div
+        role="presentation"
         className={classNames(
           'filter-list-group-header',
           'repository-folder-drop-target',
