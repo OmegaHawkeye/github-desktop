@@ -46,6 +46,7 @@ export type MenuEvent =
   | 'decrease-active-resizable-width'
   | 'increase-active-resizable-width'
   | 'toggle-changes-filter'
+  | 'show-folder-overview'
   | TestMenuEvent
 
 /**

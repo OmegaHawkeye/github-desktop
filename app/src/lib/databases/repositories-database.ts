@@ -52,6 +52,12 @@ export interface IDatabaseFolder {
   readonly sortOrder: number
   /** `null` when the folder is at the root of the tree. */
   readonly parentFolderID: number | null
+  /**
+   * A CSS color (e.g. `#rrggbb`) for the folder, or `null`/`undefined` for the
+   * default appearance. This is a non-indexed field so no schema migration is
+   * required to add it.
+   */
+  readonly color?: string | null
 }
 
 export interface IDatabaseRepository {

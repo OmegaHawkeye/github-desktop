@@ -47,8 +47,9 @@ export class DeleteRepositoryFolder extends React.Component<
             <Ref>{this.props.folder.name}</Ref>?
           </p>
           <p>
-            Nested folders will also be deleted. Repositories in these folders
-            will remain in GitHub Desktop without a folder.
+            {this.props.folder.parentFolderID !== null
+              ? 'Repositories and nested folders inside will be moved up to the parent folder.'
+              : 'Repositories and nested folders inside will be moved out to the top level.'}
           </p>
         </DialogContent>
         <DialogFooter>

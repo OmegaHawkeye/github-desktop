@@ -167,7 +167,8 @@ export class RepositoriesStore extends TypedBaseStore<
       folder.id,
       folder.name,
       folder.sortOrder,
-      folder.parentFolderID ?? null
+      folder.parentFolderID ?? null,
+      folder.color ?? null
     )
   }
 
@@ -406,8 +407,9 @@ export class RepositoriesStore extends TypedBaseStore<
           name,
           sortOrder,
           parentFolderID: parentFolderID ?? null,
+          color: null,
         })
-        return new Folder(id, name, sortOrder, parentFolderID ?? null)
+        return new Folder(id, name, sortOrder, parentFolderID ?? null, null)
       }
     )
 
@@ -427,6 +429,15 @@ export class RepositoriesStore extends TypedBaseStore<
       await this.db.folders.update(folder.id, { name })
     })
 
+    this.emitUpdatedRepositories()
+  }
+
+  /** Set (or clear, with `null`) the color of a repository folder. */
+  public async setFolderColor(
+    folder: Folder,
+    color: string | null
+  ): Promise<void> {
+    await this.db.folders.update(folder.id, { color })
     this.emitUpdatedRepositories()
   }
 
@@ -450,6 +461,7 @@ export class RepositoriesStore extends TypedBaseStore<
           name: folder.name,
           sortOrder: index,
           parentFolderID: folder.parentFolderID ?? null,
+          color: folder.color ?? null,
         }))
       )
     })
@@ -587,32 +599,36 @@ export class RepositoriesStore extends TypedBaseStore<
     this.emitUpdatedRepositories()
   }
 
-  /** Delete a repository folder, nested children, and unassign repositories. */
+  /**
+   * Delete a repository folder. Its direct child folders and repositories are
+   * lifted up to the deleted folder's parent (or to the top level if the folder
+   * was itself top-level) so that nothing is orphaned unexpectedly.
+   */
   public async deleteFolder(folder: Folder): Promise<void> {
     await this.db.transaction(
       'rw',
       this.db.folders,
       this.db.repositories,
       async () => {
-        await this.deleteFolderAndDescendants(folder.id)
+        const newParentID = folder.parentFolderID ?? null
+
+        // Lift direct child folders up to the deleted folder's parent.
+        await this.db.folders
+          .where('parentFolderID')
+          .equals(folder.id)
+          .modify({ parentFolderID: newParentID })
+
+        // Move repositories in this folder to the parent folder.
+        await this.db.repositories
+          .where('folderID')
+          .equals(folder.id)
+          .modify({ folderID: newParentID })
+
+        await this.db.folders.delete(folder.id)
       }
     )
 
     this.emitUpdatedRepositories()
-  }
-
-  private async deleteFolderAndDescendants(folderId: number): Promise<void> {
-    const all = await this.db.folders.toArray()
-    const children = all.filter(f => f.parentFolderID === folderId)
-    for (const child of children) {
-      assertNonNullable(child.id, 'folder child id')
-      await this.deleteFolderAndDescendants(child.id)
-    }
-    await this.db.repositories
-      .where('folderID')
-      .equals(folderId)
-      .modify({ folderID: null })
-    await this.db.folders.delete(folderId)
   }
 
   /** True if `newParentFolderId` is the moved folder or nested under it. */

@@ -87,6 +87,12 @@ export interface IAppState {
   readonly collapsedRepositoryFolderIDs: ReadonlyArray<number>
 
   /**
+   * Whether the folder overview (a full main-area view listing every folder
+   * and the repositories it contains) is currently shown.
+   */
+  readonly showFolderOverview: boolean
+
+  /**
    * List of IDs of the most recently opened repositories (most recent first)
    */
   readonly recentRepositories: ReadonlyArray<number>

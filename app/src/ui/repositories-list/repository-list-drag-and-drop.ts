@@ -70,6 +70,6 @@ export function getReorderedFolders(
 
   return reordered.map(
     (f, index) =>
-      new Folder(f.id, f.name, index, f.parentFolderID ?? null)
+      new Folder(f.id, f.name, index, f.parentFolderID ?? null, f.color ?? null)
   )
 }

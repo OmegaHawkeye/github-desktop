@@ -56,6 +56,7 @@ import {
   BranchDropdown,
   RevertProgress,
 } from './toolbar'
+import { FolderOverview } from './folder-overview/folder-overview'
 import { iconForRepository, OcticonSymbol } from './octicons'
 import * as octicons from './octicons/octicons.generated'
 import {
@@ -444,6 +445,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.showChanges(true)
       case 'show-history':
         return this.showHistory(true)
+      case 'show-folder-overview':
+        return this.onToggleFolderOverview()
       case 'choose-repository':
         return this.chooseRepository()
       case 'add-local-repository':
@@ -2071,7 +2074,6 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             tagName={popup.tagName}
-            canDeleteRemote={popup.canDeleteRemote}
           />
         )
       }
@@ -2126,6 +2128,8 @@ export class App extends React.Component<IAppProps, IAppState> {
             dispatcher={this.props.dispatcher}
             repository={popup.repository}
             initialName={popup.initialName}
+            parentFolderID={popup.parentFolderID}
+            positionRelativeTo={popup.positionRelativeTo}
             onDismissed={onPopupDismissedFn}
           />
         )
@@ -3255,10 +3259,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         dispatcher={this.props.dispatcher}
         repository={selection.repository}
         aheadBehind={state.aheadBehind}
-        numTagsToPush={
-          (state.tagsToPush?.length ?? 0) +
-          (state.tagsToDeleteOnRemote?.length ?? 0)
-        }
+        numTagsToPush={state.tagsToPush !== null ? state.tagsToPush.length : 0}
         remoteName={remoteName}
         lastFetched={state.lastFetched}
         networkActionInProgress={state.isPushPullFetchInProgress}
@@ -3479,6 +3480,17 @@ export class App extends React.Component<IAppProps, IAppState> {
     )
   }
 
+  private onToggleFolderOverview = () => {
+    this.props.dispatcher.setShowFolderOverview(!this.state.showFolderOverview)
+  }
+
+  private onFolderOverviewRepositorySelected = (
+    repository: Repository | CloningRepository
+  ) => {
+    this.props.dispatcher.selectRepository(repository)
+    this.props.dispatcher.setShowFolderOverview(false)
+  }
+
   private renderRepository() {
     const { accounts } = this.state
 
@@ -3499,6 +3511,20 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
 
     const state = this.state
+
+    if (state.showFolderOverview) {
+      return (
+        <FolderOverview
+          dispatcher={this.props.dispatcher}
+          repositories={state.repositories}
+          folders={state.folders}
+          collapsedFolderIDs={state.collapsedRepositoryFolderIDs}
+          localRepositoryStateLookup={state.localRepositoryStateLookup}
+          selectedRepository={state.selectedState?.repository ?? null}
+          onSelectRepository={this.onFolderOverviewRepositorySelected}
+        />
+      )
+    }
 
     const selectedState = state.selectedState
     if (!selectedState) {

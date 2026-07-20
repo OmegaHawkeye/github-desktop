@@ -666,6 +666,13 @@ export class Dispatcher {
   }
 
   /**
+   * Deletes the passed tag.
+   */
+  public deleteTag(repository: Repository, name: string): Promise<void> {
+    return this.appStore._deleteTag(repository, name)
+  }
+
+  /**
    * Show the tag creation dialog.
    */
   public showCreateTagDialog(
@@ -688,14 +695,12 @@ export class Dispatcher {
    */
   public showDeleteTagDialog(
     repository: Repository,
-    tagName: string,
-    canDeleteRemote: boolean
+    tagName: string
   ): Promise<void> {
     return this.showPopup({
       type: PopupType.DeleteTag,
       repository,
       tagName,
-      canDeleteRemote,
     })
   }
 
@@ -865,6 +870,14 @@ export class Dispatcher {
     return this.appStore._renameRepositoryFolder(folder, name)
   }
 
+  /** Set (or clear, with `null`) the color of a repository folder. */
+  public setRepositoryFolderColor(
+    folder: Folder,
+    color: string | null
+  ): Promise<void> {
+    return this.appStore._setRepositoryFolderColor(folder, color)
+  }
+
   public reorderRepositoryFolders(
     folders: ReadonlyArray<Folder>
   ): Promise<void> {
@@ -888,6 +901,11 @@ export class Dispatcher {
 
   public toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
     return this.appStore._toggleCollapsedRepositoryFolder(folderID)
+  }
+
+  /** Show or hide the folder overview (full main-area view). */
+  public setShowFolderOverview(show: boolean): Promise<void> {
+    return this.appStore._setShowFolderOverview(show)
   }
 
   public deleteRepositoryFolder(folder: Folder): Promise<void> {

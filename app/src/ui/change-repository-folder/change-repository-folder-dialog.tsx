@@ -13,6 +13,13 @@ interface IChangeRepositoryFolderProps {
   readonly repository?: Repository
   readonly folder?: Folder
   readonly initialName?: string
+  /** Create the new folder nested under this parent folder. */
+  readonly parentFolderID?: number | null
+  /** After creation, position the new folder before/after an existing sibling. */
+  readonly positionRelativeTo?: {
+    readonly folder: Folder
+    readonly position: 'before' | 'after'
+  }
 }
 
 interface IChangeRepositoryFolderState {
@@ -95,7 +102,17 @@ export class ChangeRepositoryFolder extends React.Component<
           name
         )
       } else {
-        const folder = await this.props.dispatcher.createRepositoryFolder(name)
+        const folder = await this.props.dispatcher.createRepositoryFolder(
+          name,
+          this.props.parentFolderID ?? null
+        )
+        if (this.props.positionRelativeTo) {
+          await this.props.dispatcher.moveFolderRelativeTo(
+            folder,
+            this.props.positionRelativeTo.folder,
+            this.props.positionRelativeTo.position
+          )
+        }
         if (this.props.repository) {
           await this.props.dispatcher.updateRepositoryFolder(
             this.props.repository,

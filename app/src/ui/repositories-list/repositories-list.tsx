@@ -40,6 +40,12 @@ import {
   FolderDropPosition,
   getFolderDropPosition,
 } from './repository-list-drag-and-drop'
+import {
+  getNewFolderMenuItem,
+  getReadableTextColor,
+  hexToRgba,
+} from './folder-context-menu'
+import { FolderMenu } from './folder-menu'
 
 const BlankSlateImage = encodePathAsUrl(__dirname, 'static/empty-no-repo.svg')
 
@@ -95,6 +101,12 @@ interface IRepositoriesListProps {
 interface IRepositoriesListState {
   readonly newRepositoryMenuExpanded: boolean
   readonly selectedItem: IRepositoryListItem | null
+  /** The open custom folder context menu, if any. */
+  readonly folderMenu: {
+    readonly folderID: number
+    readonly x: number
+    readonly y: number
+  } | null
   readonly activeFolderDropTarget: IActiveFolderDropTarget | null
 }
 
@@ -243,6 +255,7 @@ export class RepositoriesList extends React.Component<
       newRepositoryMenuExpanded: false,
       selectedItem: null,
       activeFolderDropTarget: null,
+      folderMenu: null,
     }
   }
 
@@ -264,10 +277,24 @@ export class RepositoriesList extends React.Component<
     }
 
     if (item.group.kind === 'folder') {
+      const folderColor = item.group.folder.color
+      // Repositories inside a colored folder share that color as a subtle
+      // background tint so the folder and its contents read as one zone. A
+      // translucent tint keeps the selection/hover highlights visible.
+      const sectionStyle: React.CSSProperties | undefined =
+        folderColor !== null
+          ? { backgroundColor: hexToRgba(folderColor, 0.28) }
+          : undefined
+
       content = (
         <div
           role="presentation"
-          className="repository-folder-drop-target repository-folder-section-drop-target"
+          className={classNames(
+            'repository-folder-drop-target',
+            'repository-folder-section-drop-target',
+            { 'has-color': folderColor !== null }
+          )}
+          style={sectionStyle}
           onMouseEnter={this.onFolderSectionDropTargetMouseEnter(
             item.group.folder
           )}
@@ -445,6 +472,12 @@ export class RepositoriesList extends React.Component<
       this.props.collapsedFolderIDs.includes(group.folder.id)
 
     const depth = group.depth
+    const color = group.folder.color
+    const headerStyle: React.CSSProperties = { paddingLeft: depth * 12 }
+    if (color !== null) {
+      headerStyle.backgroundColor = color
+      headerStyle.color = getReadableTextColor(color)
+    }
     return (
       <div
         role="presentation"
@@ -453,6 +486,7 @@ export class RepositoriesList extends React.Component<
           'repository-folder-drop-target',
           'repository-folder-header',
           {
+            'has-color': color !== null,
             'active-drop-target': activeDropTarget !== null,
             'repository-drop-target': activeDropTarget?.kind === 'repository',
             'folder-drop-before': activeDropTarget?.position === 'before',
@@ -460,7 +494,7 @@ export class RepositoriesList extends React.Component<
             'folder-drop-into': activeDropTarget?.position === 'into',
           }
         )}
-        style={{ paddingLeft: depth * 12 }}
+        style={headerStyle}
         onMouseEnter={this.onFolderDropTargetMouseEnter(group.folder)}
         onMouseMove={this.onFolderDropTargetMouseMove(group.folder)}
         onMouseLeave={this.onFolderDropTargetMouseLeave(group.folder)}
@@ -770,7 +804,10 @@ export class RepositoriesList extends React.Component<
       this.getSelectedListItem(groups, this.props.selectedRepository)
 
     return (
-      <div className="repository-list">
+      <div
+        className="repository-list"
+        onContextMenu={this.onListBackgroundContextMenu}
+      >
         <SectionFilterList<IRepositoryListItem, RepositoryListGroup>
           rowHeight={RowHeight}
           selectedItem={selectedItem}
@@ -798,6 +835,7 @@ export class RepositoriesList extends React.Component<
               : undefined
           }
         />
+        {this.renderFolderMenu()}
       </div>
     )
   }
@@ -819,24 +857,61 @@ export class RepositoriesList extends React.Component<
 
     event.preventDefault()
 
-    showContextualMenu([
-      {
-        label: __DARWIN__ ? 'Rename Folder…' : 'Rename folder…',
-        action: () =>
-          this.props.dispatcher.showPopup({
-            type: PopupType.RenameRepositoryFolder,
-            folder: group.folder,
-          }),
+    this.setState({
+      folderMenu: {
+        folderID: group.folder.id,
+        x: event.clientX,
+        y: event.clientY,
       },
-      {
-        label: __DARWIN__ ? 'Delete Folder…' : 'Delete folder…',
-        action: () =>
-          this.props.dispatcher.showPopup({
-            type: PopupType.DeleteRepositoryFolder,
-            folder: group.folder,
-          }),
-      },
-    ])
+    })
+  }
+
+  private closeFolderMenu = () => {
+    this.setState({ folderMenu: null })
+  }
+
+  private renderFolderMenu() {
+    const { folderMenu } = this.state
+    if (folderMenu === null) {
+      return null
+    }
+
+    const folder = this.props.folders.find(f => f.id === folderMenu.folderID)
+    if (folder === undefined) {
+      return null
+    }
+
+    return (
+      <FolderMenu
+        folder={folder}
+        folders={this.props.folders}
+        dispatcher={this.props.dispatcher}
+        clientX={folderMenu.x}
+        clientY={folderMenu.y}
+        onClose={this.closeFolderMenu}
+      />
+    )
+  }
+
+  /**
+   * Context menu for the empty space of the repository list, allowing the user
+   * to create a new top-level folder without needing an existing repository.
+   */
+  private onListBackgroundContextMenu = (
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    // Let the more specific handlers (repository rows and folder headers) take
+    // precedence when the click landed on one of them.
+    if (
+      event.target instanceof Element &&
+      event.target.closest('.list-item, .filter-list-group-header') !== null
+    ) {
+      return
+    }
+
+    event.preventDefault()
+
+    showContextualMenu([getNewFolderMenuItem(this.props.dispatcher)])
   }
 
   private renderPostFilter = () => {

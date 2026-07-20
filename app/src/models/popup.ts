@@ -316,6 +316,16 @@ export type PopupDetail =
       type: PopupType.CreateRepositoryFolder
       repository?: Repository
       initialName?: string
+      /** Create the new folder nested under this parent folder. */
+      parentFolderID?: number | null
+      /**
+       * After creation, position the new folder before/after an existing
+       * sibling folder (used for "New folder before/after").
+       */
+      positionRelativeTo?: {
+        readonly folder: Folder
+        readonly position: 'before' | 'after'
+      }
     }
   | { type: PopupType.RenameRepositoryFolder; folder: Folder }
   | { type: PopupType.DeleteRepositoryFolder; folder: Folder }

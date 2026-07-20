@@ -1,0 +1,319 @@
+@import '../mixins';
+
+.folder-overview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--background-color);
+
+  .folder-overview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing) var(--spacing-double);
+    border-bottom: 1px solid var(--box-border-color);
+    flex-shrink: 0;
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-half);
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+    }
+  }
+
+  .folder-overview-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: var(--spacing) 0 var(--spacing-double);
+  }
+
+  .folder-overview-empty {
+    padding: var(--spacing-double);
+    color: var(--text-secondary-color);
+    max-width: 480px;
+  }
+
+  .folder-overview-section {
+    margin-bottom: var(--spacing-half);
+  }
+
+  .folder-overview-folder-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-half);
+    padding: var(--spacing-half) var(--spacing-double);
+    background: var(--box-alt-background-color);
+    font-weight: var(--font-weight-semibold);
+    cursor: grab;
+    user-select: none;
+
+    &.folder-drop-before {
+      box-shadow: inset 0 2px 0 var(--accent-color);
+    }
+
+    &.folder-drop-after {
+      box-shadow: inset 0 -2px 0 var(--accent-color);
+    }
+
+    &.folder-drop-into {
+      box-shadow: inset 0 0 0 2px var(--accent-color);
+    }
+
+    .octicon {
+      color: var(--text-secondary-color);
+      flex-shrink: 0;
+    }
+
+    .folder-overview-disclosure {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      cursor: pointer;
+
+      .octicon {
+        color: inherit;
+      }
+    }
+
+    .folder-name {
+      @include ellipsis;
+    }
+
+    .folder-count {
+      margin-left: var(--spacing-half);
+      color: var(--text-secondary-color);
+      font-weight: var(--font-weight-normal);
+      font-size: var(--font-size-sm);
+    }
+
+    // When the folder has a custom color the background/text color are set
+    // inline; make the icon and count follow the readable text color.
+    &.has-color {
+      .octicon {
+        color: inherit;
+      }
+
+      .folder-count {
+        color: inherit;
+        opacity: 0.85;
+      }
+    }
+  }
+
+  .folder-overview-repository {
+    // Reset button styling.
+    appearance: none;
+    border: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-half);
+    width: 100%;
+    padding: var(--spacing-half) var(--spacing-double);
+    box-sizing: border-box;
+
+    &:hover {
+      background: var(--list-item-hover-background-color);
+    }
+
+    &.selected {
+      background: var(--list-item-selected-background-color);
+      color: var(--list-item-selected-text-color);
+
+      .repo-path,
+      .repo-indicators .octicon {
+        color: var(--list-item-selected-text-color);
+      }
+    }
+
+    .repo-icon {
+      flex-shrink: 0;
+      color: var(--text-secondary-color);
+    }
+
+    .repo-name {
+      flex-shrink: 0;
+      max-width: 40%;
+      @include ellipsis;
+    }
+
+    .repo-path {
+      flex: 1 1 auto;
+      min-width: 0;
+      color: var(--text-secondary-color);
+      font-size: var(--font-size-sm);
+      @include ellipsis;
+    }
+
+    .repo-indicators {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-half);
+      flex-shrink: 0;
+      color: var(--text-secondary-color);
+      font-size: var(--font-size-sm);
+
+      .ahead,
+      .behind {
+        display: flex;
+        align-items: center;
+      }
+    }
+  }
+}
+
+// The custom (HTML) folder context menu with its inline color picker.
+.folder-menu {
+  position: fixed;
+  z-index: var(--foldout-z-index, 20);
+  min-width: 220px;
+  padding: var(--spacing-half) 0;
+  background: var(--background-color);
+  border: 1px solid var(--box-border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--base-box-shadow, 0 4px 16px rgba(0, 0, 0, 0.3));
+  outline: none;
+  user-select: none;
+
+  .folder-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    font: inherit;
+    padding: var(--spacing-half) var(--spacing);
+    cursor: pointer;
+
+    &:hover:not(:disabled),
+    &:focus:not(:disabled) {
+      background: var(--list-item-hover-background-color);
+      outline: none;
+    }
+
+    &:disabled {
+      color: var(--text-secondary-color);
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    &.destructive:hover {
+      background: var(--dialog-error-color, #d1242f);
+      color: #fff;
+    }
+  }
+
+  .folder-menu-separator {
+    height: 1px;
+    margin: var(--spacing-half) 0;
+    background: var(--box-border-color);
+  }
+
+  .folder-menu-colors {
+    padding: var(--spacing-half) var(--spacing);
+  }
+
+  .folder-menu-swatches {
+    display: flex;
+    gap: var(--spacing-half);
+    margin-bottom: var(--spacing-half);
+  }
+
+  .folder-menu-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+
+    .octicon {
+      width: 12px;
+      height: 12px;
+      filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.5));
+    }
+
+    &.selected {
+      border-color: var(--text-color);
+    }
+  }
+
+  .folder-menu-custom {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-half);
+  }
+
+  .folder-menu-custom-input {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-half);
+    flex: 1 1 auto;
+    cursor: pointer;
+
+    input[type='color'] {
+      width: 28px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid var(--box-border-color);
+      border-radius: var(--border-radius);
+      background: transparent;
+      cursor: pointer;
+      margin-left: auto;
+    }
+  }
+
+  .folder-menu-custom-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid var(--box-border-color);
+    flex-shrink: 0;
+  }
+
+  .folder-menu-remove-color {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    appearance: none;
+    border: 1px solid var(--box-border-color);
+    background: transparent;
+    color: var(--text-secondary-color);
+    border-radius: var(--border-radius);
+    width: 28px;
+    height: 24px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--text-color);
+      background: var(--list-item-hover-background-color);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+}

@@ -490,6 +490,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private folders: ReadonlyArray<Folder> = new Array<Folder>()
   private collapsedRepositoryFolderIDs: ReadonlyArray<number> =
     new Array<number>()
+  private showFolderOverview: boolean = false
   private recentRepositories: ReadonlyArray<number> = new Array<number>()
 
   private selectedRepository: Repository | CloningRepository | null = null
@@ -1066,6 +1067,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       repositories,
       folders: this.folders,
       collapsedRepositoryFolderIDs: this.collapsedRepositoryFolderIDs,
+      showFolderOverview: this.showFolderOverview,
       recentRepositories: this.recentRepositories,
       localRepositoryStateLookup: this.localRepositoryStateLookup,
       windowState: this.windowState,
@@ -1247,7 +1249,6 @@ export class AppStore extends TypedBaseStore<IAppState> {
       localTags: gitStore.localTags,
       aheadBehind: gitStore.aheadBehind,
       tagsToPush: gitStore.tagsToPush,
-      tagsToDeleteOnRemote: gitStore.tagsToDeleteOnRemote,
       remote: gitStore.currentRemote,
       lastFetched: gitStore.lastFetched,
     }))
@@ -1929,6 +1930,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
     }
 
     this.selectedRepository = repository
+
+    // Selecting a repository (e.g. from the repository switcher) should take
+    // the user to that repository, leaving the folder overview behind.
+    if (repository !== null) {
+      this.showFolderOverview = false
+    }
 
     this.emitUpdate()
     this.stopBackgroundFetching()
@@ -4069,6 +4076,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
     await gitStore.createTag(name, sha)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _deleteTag(repository: Repository, name: string) {
+    const gitStore = this.gitStoreCache.get(repository)
+    await gitStore.deleteTag(name)
+  }
+
   private updateCheckoutProgress(
     repository: Repository,
     checkoutProgress: ICheckoutProgress | null
@@ -4807,7 +4820,6 @@ export class AppStore extends TypedBaseStore<IAppState> {
             gitStore.tagsToPush,
             {
               onHookFailure: this.onHookFailure(() => (aborted = true)),
-              tagsToDeleteOnRemote: gitStore.tagsToDeleteOnRemote,
               ...options,
             },
             progress => {
@@ -4824,7 +4836,6 @@ export class AppStore extends TypedBaseStore<IAppState> {
           }
 
           gitStore.clearTagsToPush()
-          gitStore.clearTagsToDeleteOnRemote()
 
           await gitStore.fetchRemotes([safeRemote], false, fetchProgress => {
             this.updatePushPullFetchProgress(repository, {
@@ -6791,6 +6802,13 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.repositoriesStore.renameFolder(folder, name)
   }
 
+  public _setRepositoryFolderColor(
+    folder: Folder,
+    color: string | null
+  ): Promise<void> {
+    return this.repositoriesStore.setFolderColor(folder, color)
+  }
+
   public _reorderRepositoryFolders(
     folders: ReadonlyArray<Folder>
   ): Promise<void> {
@@ -6819,6 +6837,15 @@ export class AppStore extends TypedBaseStore<IAppState> {
     )
     saveCollapsedRepositoryFolderIDs(this.collapsedRepositoryFolderIDs)
     this.emitUpdate()
+
+    return Promise.resolve()
+  }
+
+  public _setShowFolderOverview(show: boolean): Promise<void> {
+    if (this.showFolderOverview !== show) {
+      this.showFolderOverview = show
+      this.emitUpdate()
+    }
 
     return Promise.resolve()
   }
