@@ -295,6 +295,30 @@ export class Dispatcher {
     return this.appStore._selectRepository(repository)
   }
 
+  public closeRepositoryTab(repositoryId: number): Promise<void> {
+    return this.appStore._closeRepositoryTab(repositoryId)
+  }
+
+  public closeOtherRepositoryTabs(repositoryId: number): Promise<void> {
+    return this.appStore._closeOtherRepositoryTabs(repositoryId)
+  }
+
+  public closeRepositoryTabsToRight(repositoryId: number): Promise<void> {
+    return this.appStore._closeRepositoryTabsToRight(repositoryId)
+  }
+
+  public selectAdjacentRepositoryTab(
+    direction: 'next' | 'previous'
+  ): Promise<void> {
+    return this.appStore._selectAdjacentRepositoryTab(direction)
+  }
+
+  public reorderRepositoryTabs(
+    orderedRepositoryIds: ReadonlyArray<number>
+  ): Promise<void> {
+    return this.appStore._reorderRepositoryTabs(orderedRepositoryIds)
+  }
+
   /** Change the selected section in the repository. */
   public changeRepositorySection(
     repository: Repository,
@@ -865,12 +889,40 @@ export class Dispatcher {
     return this.appStore._changeRepositoryAlias(repository, newAlias)
   }
 
-  public createRepositoryFolder(name: string): Promise<Folder> {
-    return this.appStore._createRepositoryFolder(name)
+  public createRepositoryFolder(
+    name: string,
+    parentFolderID?: number | null
+  ): Promise<Folder> {
+    return this.appStore._createRepositoryFolder(name, parentFolderID)
   }
 
   public renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
     return this.appStore._renameRepositoryFolder(folder, name)
+  }
+
+  public reorderRepositoryFolders(
+    folders: ReadonlyArray<Folder>
+  ): Promise<void> {
+    return this.appStore._reorderRepositoryFolders(folders)
+  }
+
+  public reparentRepositoryFolder(
+    folder: Folder,
+    newParentFolderID: number | null
+  ): Promise<void> {
+    return this.appStore._reparentRepositoryFolder(folder, newParentFolderID)
+  }
+
+  public moveFolderRelativeTo(
+    moved: Folder,
+    target: Folder,
+    position: 'before' | 'after' | 'into'
+  ): Promise<void> {
+    return this.appStore._moveFolderRelativeTo(moved, target, position)
+  }
+
+  public toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
+    return this.appStore._toggleCollapsedRepositoryFolder(folderID)
   }
 
   public deleteRepositoryFolder(folder: Folder): Promise<void> {

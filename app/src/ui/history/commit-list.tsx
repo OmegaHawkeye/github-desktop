@@ -212,7 +212,10 @@ export class CommitList extends React.Component<
     (insertionIndexPath: RowIndexPath | null) => {
       const { keyboardReorderData } = this.props
 
-      if (keyboardReorderData === undefined) {
+      if (
+        keyboardReorderData === undefined ||
+        keyboardReorderData.type !== DragType.Commit
+      ) {
         this.setState({ reorderingMessage: '' })
         return
       }
@@ -662,15 +665,15 @@ export class CommitList extends React.Component<
   private renderKeyboardInsertionElement = (
     data: KeyboardInsertionData
   ): JSX.Element | null => {
-    const { emoji, gitHubRepository } = this.props
-    const { commits } = data
-
-    if (commits.length === 0) {
-      return null
-    }
-
     switch (data.type) {
       case DragType.Commit:
+        const { emoji, gitHubRepository } = this.props
+        const { commits } = data
+
+        if (commits.length === 0) {
+          return null
+        }
+
         return (
           <CommitDragElement
             gitHubRepository={gitHubRepository}
@@ -681,8 +684,11 @@ export class CommitList extends React.Component<
             accounts={this.props.accounts}
           />
         )
+      case DragType.Repository:
+      case DragType.RepositoryFolder:
+        return null
       default:
-        return assertNever(data.type, `Unknown drag element type: ${data}`)
+        return assertNever(data, `Unknown drag element type: ${data}`)
     }
   }
 

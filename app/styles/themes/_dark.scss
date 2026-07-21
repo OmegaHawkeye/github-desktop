@@ -264,6 +264,12 @@ body.theme-dark {
   --list-item-hover-background-color: #{$gray-800};
 
   /**
+   * Repository picker foldout: same plane as the toolbar so the panel
+   * does not read as a bright card on top of dark chrome.
+   */
+  --repository-sidebar-background: var(--toolbar-background-color);
+
+  /**
    * Toast notifications are shown temporarily for things like the zoom
    * percentage changing or the app toggling between full screen and normal
    * window mode.

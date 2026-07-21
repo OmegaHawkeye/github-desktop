@@ -206,4 +206,100 @@ describe('repository list grouping', () => {
     assert.equal(grouped[2].identifier.kind, 'other')
     assert.equal(grouped[2].items[0].repository.path, 'uncategorized')
   })
+
+  it('orders folder groups by sort order and keeps empty folders visible', () => {
+    const workFolder = new Folder(1, 'Work', 1)
+    const personalFolder = new Folder(2, 'Personal', 0)
+    const emptyFolder = new Folder(3, 'Empty', 2)
+    const workRepo = new Repository('work-repo', 1, null, false, null, {}, false, 1)
+
+    const grouped = groupRepositories(
+      [workRepo],
+      [workFolder, emptyFolder, personalFolder],
+      cache,
+      []
+    )
+
+    assert.equal(grouped[0].identifier.kind, 'folder')
+    assert.equal((grouped[0].identifier as any).folder.name, 'Personal')
+    assert.equal(grouped[0].items.length, 0)
+
+    assert.equal(grouped[1].identifier.kind, 'folder')
+    assert.equal((grouped[1].identifier as any).folder.name, 'Work')
+    assert.equal(grouped[1].items[0].repository.path, 'work-repo')
+
+    assert.equal(grouped[2].identifier.kind, 'folder')
+    assert.equal((grouped[2].identifier as any).folder.name, 'Empty')
+    assert.equal(grouped[2].items.length, 0)
+  })
+
+  it('lists nested folders in tree order before metadata groups', () => {
+    const parent = new Folder(1, 'Parent', 0, null)
+    const child = new Folder(2, 'Child', 0, parent.id)
+    const parentRepo = new Repository(
+      'parent-repo',
+      1,
+      null,
+      false,
+      null,
+      {},
+      false,
+      parent.id
+    )
+    const childRepo = new Repository(
+      'child-repo',
+      2,
+      null,
+      false,
+      null,
+      {},
+      false,
+      child.id
+    )
+
+    const grouped = groupRepositories(
+      [parentRepo, childRepo],
+      [parent, child],
+      cache,
+      []
+    )
+
+    assert.equal(grouped[0].identifier.kind, 'folder')
+    assert.equal((grouped[0].identifier as any).folder.name, 'Parent')
+    assert.equal((grouped[0].identifier as any).depth, 0)
+
+    assert.equal(grouped[1].identifier.kind, 'folder')
+    assert.equal((grouped[1].identifier as any).folder.name, 'Child')
+    assert.equal((grouped[1].identifier as any).depth, 1)
+  })
+
+  it('places reassigned repositories in the target folder group', () => {
+    const workFolder = new Folder(1, 'Work', 0)
+    const personalFolder = new Folder(2, 'Personal', 1)
+    const movedRepo = new Repository(
+      'moved-repo',
+      1,
+      null,
+      false,
+      null,
+      {},
+      false,
+      personalFolder.id
+    )
+
+    const grouped = groupRepositories(
+      [movedRepo],
+      [workFolder, personalFolder],
+      cache,
+      []
+    )
+
+    assert.equal(grouped[0].identifier.kind, 'folder')
+    assert.equal((grouped[0].identifier as any).folder.name, 'Work')
+    assert.equal(grouped[0].items.length, 0)
+
+    assert.equal(grouped[1].identifier.kind, 'folder')
+    assert.equal((grouped[1].identifier as any).folder.name, 'Personal')
+    assert.equal(grouped[1].items[0].repository.path, 'moved-repo')
+  })
 })

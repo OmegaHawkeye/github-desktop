@@ -76,6 +76,11 @@ $overlay-background-color: rgba(0, 0, 0, 0.4);
   --font-weight-semibold: 600;
 
   /**
+   * Font weight between normal and semibold (UI labels, folder titles)
+   */
+  --font-weight-medium: 500;
+
+  /**
    * Font weight to use for light text
    */
   --font-weight-light: 300;
@@ -330,6 +335,11 @@ $overlay-background-color: rgba(0, 0, 0, 0.4);
   --list-item-selected-active-badge-color: #{$gray-900};
   --list-item-selected-active-badge-background-color: #{$white};
   --list-item-hover-background-color: #{$gray-100};
+
+  /**
+   * Repository picker foldout (toolbar): align with main chrome background.
+   */
+  --repository-sidebar-background: var(--background-color);
 
   /** Windows/Linux have custom scrollbars, see _scroll.scss */
   --win32-scroll-bar-size: 10px;

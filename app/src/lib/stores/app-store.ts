@@ -230,6 +230,17 @@ import { TypedBaseStore } from './base-store'
 import { MergeTreeResult } from '../../models/merge'
 import { promiseWithMinimumTimeout } from '../promise'
 import { BackgroundFetcher } from './helpers/background-fetcher'
+import {
+  cleanupCollapsedRepositoryFolderIDs,
+  loadCollapsedRepositoryFolderIDs,
+  saveCollapsedRepositoryFolderIDs,
+  toggleCollapsedRepositoryFolderID,
+} from './helpers/collapsed-repository-folders-storage'
+import {
+  cleanupOpenRepositoryTabIDs,
+  loadOpenRepositoryTabIDs,
+  saveOpenRepositoryTabIDs,
+} from './helpers/open-repository-tabs-storage'
 import { RepositoryStateCache } from './repository-state-cache'
 import { readEmoji } from '../read-emoji'
 import { Emoji } from '../emoji'
@@ -482,7 +493,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private accounts: ReadonlyArray<Account> = new Array<Account>()
   private repositories: ReadonlyArray<Repository> = new Array<Repository>()
   private folders: ReadonlyArray<Folder> = new Array<Folder>()
+  private collapsedRepositoryFolderIDs: ReadonlyArray<number> =
+    new Array<number>()
   private recentRepositories: ReadonlyArray<number> = new Array<number>()
+  private openRepositoryTabIDs: ReadonlyArray<number> = new Array<number>()
 
   private selectedRepository: Repository | CloningRepository | null = null
 
@@ -933,6 +947,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.repositoriesStore.onDidUpdate(async updateRepositories => {
       this.repositories = updateRepositories
       this.folders = await this.repositoriesStore.getAllFolders()
+      this.cleanupCollapsedRepositoryFolders(false)
+      this.cleanupOpenRepositoryTabs(false)
       this.updateRepositorySelectionAfterRepositoriesChanged()
       this.emitUpdate()
     })
@@ -1056,7 +1072,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       accounts: this.accounts,
       repositories,
       folders: this.folders,
+      collapsedRepositoryFolderIDs: this.collapsedRepositoryFolderIDs,
       recentRepositories: this.recentRepositories,
+      openRepositoryTabIDs: this.openRepositoryTabIDs,
       localRepositoryStateLookup: this.localRepositoryStateLookup,
       windowState: this.windowState,
       windowZoomFactor: this.windowZoomFactor,
@@ -1920,6 +1938,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     this.selectedRepository = repository
 
+    if (repository instanceof Repository) {
+      this.ensureRepositoryTab(repository.id)
+    }
+
     this.emitUpdate()
     this.stopBackgroundFetching()
     this.stopPullRequestUpdater()
@@ -2211,6 +2233,23 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.accounts = accounts
     this.repositories = repositories
     this.folders = folders
+    this.collapsedRepositoryFolderIDs = loadCollapsedRepositoryFolderIDs()
+    this.cleanupCollapsedRepositoryFolders(false)
+
+    this.openRepositoryTabIDs = cleanupOpenRepositoryTabIDs(
+      loadOpenRepositoryTabIDs(),
+      this.repositories
+    )
+    if (this.openRepositoryTabIDs.length === 0) {
+      const lastSelectedID = getNumber(LastSelectedRepositoryIDKey, 0)
+      if (lastSelectedID > 0) {
+        const exists = this.repositories.some(r => r.id === lastSelectedID)
+        if (exists) {
+          this.openRepositoryTabIDs = [lastSelectedID]
+          saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+        }
+      }
+    }
 
     this.updateRepositorySelectionAfterRepositoriesChanged()
 
@@ -6778,12 +6817,47 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.apiRepositoriesStore.loadRepositories(account)
   }
 
-  public _createRepositoryFolder(name: string): Promise<Folder> {
-    return this.repositoriesStore.createFolder(name)
+  public _createRepositoryFolder(
+    name: string,
+    parentFolderID?: number | null
+  ): Promise<Folder> {
+    return this.repositoriesStore.createFolder(name, parentFolderID ?? null)
   }
 
   public _renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
     return this.repositoriesStore.renameFolder(folder, name)
+  }
+
+  public _reorderRepositoryFolders(
+    folders: ReadonlyArray<Folder>
+  ): Promise<void> {
+    return this.repositoriesStore.reorderFolders(folders)
+  }
+
+  public _reparentRepositoryFolder(
+    folder: Folder,
+    newParentFolderID: number | null
+  ): Promise<void> {
+    return this.repositoriesStore.reparentFolder(folder, newParentFolderID)
+  }
+
+  public _moveFolderRelativeTo(
+    moved: Folder,
+    target: Folder,
+    position: 'before' | 'after' | 'into'
+  ): Promise<void> {
+    return this.repositoriesStore.moveFolderRelativeTo(moved, target, position)
+  }
+
+  public _toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
+    this.collapsedRepositoryFolderIDs = toggleCollapsedRepositoryFolderID(
+      this.collapsedRepositoryFolderIDs,
+      folderID
+    )
+    saveCollapsedRepositoryFolderIDs(this.collapsedRepositoryFolderIDs)
+    this.emitUpdate()
+
+    return Promise.resolve()
   }
 
   public _deleteRepositoryFolder(folder: Folder): Promise<void> {
@@ -6795,6 +6869,174 @@ export class AppStore extends TypedBaseStore<IAppState> {
     folderID: number | null
   ): Promise<void> {
     return this.repositoriesStore.updateRepositoryFolder(repository, folderID)
+  }
+
+  private cleanupCollapsedRepositoryFolders(emitUpdate: boolean = true) {
+    const nextCollapsedFolderIDs = cleanupCollapsedRepositoryFolderIDs(
+      this.collapsedRepositoryFolderIDs,
+      this.folders
+    )
+
+    if (
+      nextCollapsedFolderIDs.length === this.collapsedRepositoryFolderIDs.length
+    ) {
+      return
+    }
+
+    this.collapsedRepositoryFolderIDs = nextCollapsedFolderIDs
+    saveCollapsedRepositoryFolderIDs(this.collapsedRepositoryFolderIDs)
+
+    if (emitUpdate) {
+      this.emitUpdate()
+    }
+  }
+
+  private cleanupOpenRepositoryTabs(emitUpdate: boolean = true) {
+    const next = cleanupOpenRepositoryTabIDs(
+      this.openRepositoryTabIDs,
+      this.repositories
+    )
+
+    if (next.length === this.openRepositoryTabIDs.length) {
+      return
+    }
+
+    this.openRepositoryTabIDs = next
+    saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+
+    if (emitUpdate) {
+      this.emitUpdate()
+    }
+  }
+
+  private ensureRepositoryTab(repositoryId: number) {
+    if (this.openRepositoryTabIDs.includes(repositoryId)) {
+      return
+    }
+
+    this.openRepositoryTabIDs = [...this.openRepositoryTabIDs, repositoryId]
+    saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _closeRepositoryTab(repositoryId: number): Promise<void> {
+    const idx = this.openRepositoryTabIDs.indexOf(repositoryId)
+    if (idx === -1) {
+      return
+    }
+
+    const nextTabs = [...this.openRepositoryTabIDs]
+    nextTabs.splice(idx, 1)
+    this.openRepositoryTabIDs = nextTabs
+    saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+
+    const wasSelected = this.selectedRepository?.id === repositoryId
+    if (wasSelected) {
+      if (nextTabs.length === 0) {
+        await this._selectRepository(null)
+      } else {
+        const newIndex = idx === 0 ? 0 : idx - 1
+        const nextId = nextTabs[newIndex]
+        const repo = this.repositories.find(r => r.id === nextId) ?? null
+        if (repo !== null) {
+          await this._selectRepository(repo)
+        } else {
+          await this._selectRepository(null)
+        }
+      }
+    } else {
+      this.emitUpdate()
+    }
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _closeOtherRepositoryTabs(repositoryId: number): Promise<void> {
+    if (!this.openRepositoryTabIDs.includes(repositoryId)) {
+      return
+    }
+
+    this.openRepositoryTabIDs = [repositoryId]
+    saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+
+    const repo = this.repositories.find(r => r.id === repositoryId) ?? null
+    if (repo !== null) {
+      await this._selectRepository(repo)
+    } else {
+      this.emitUpdate()
+    }
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _closeRepositoryTabsToRight(
+    repositoryId: number
+  ): Promise<void> {
+    const idx = this.openRepositoryTabIDs.indexOf(repositoryId)
+    if (idx === -1) {
+      return
+    }
+
+    const nextTabs = this.openRepositoryTabIDs.slice(0, idx + 1)
+    this.openRepositoryTabIDs = nextTabs
+    saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+
+    const selectedId = this.selectedRepository?.id
+    if (
+      selectedId !== undefined &&
+      selectedId !== null &&
+      !nextTabs.includes(selectedId)
+    ) {
+      const repo = this.repositories.find(r => r.id === repositoryId) ?? null
+      if (repo !== null) {
+        await this._selectRepository(repo)
+      } else {
+        this.emitUpdate()
+      }
+    } else {
+      this.emitUpdate()
+    }
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _selectAdjacentRepositoryTab(
+    direction: 'next' | 'previous'
+  ): Promise<void> {
+    const tabs = this.openRepositoryTabIDs
+    if (tabs.length === 0) {
+      return
+    }
+
+    const selectedId = this.selectedRepository?.id
+    let currentIndex = selectedId !== undefined ? tabs.indexOf(selectedId) : -1
+
+    if (currentIndex === -1) {
+      currentIndex = direction === 'next' ? -1 : 0
+    }
+
+    const delta = direction === 'next' ? 1 : -1
+    const nextIndex = (currentIndex + delta + tabs.length) % tabs.length
+    const nextId = tabs[nextIndex]
+    const repo = this.repositories.find(r => r.id === nextId) ?? null
+    if (repo !== null) {
+      await this._selectRepository(repo)
+    }
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _reorderRepositoryTabs(
+    orderedRepositoryIds: ReadonlyArray<number>
+  ): Promise<void> {
+    const current = new Set(this.openRepositoryTabIDs)
+    if (
+      orderedRepositoryIds.length !== current.size ||
+      !orderedRepositoryIds.every(id => current.has(id))
+    ) {
+      return Promise.resolve()
+    }
+
+    this.openRepositoryTabIDs = [...orderedRepositoryIds]
+    saveOpenRepositoryTabIDs(this.openRepositoryTabIDs)
+    this.emitUpdate()
+    return Promise.resolve()
   }
 
   public _changeBranchesTab(tab: BranchesTab): Promise<void> {

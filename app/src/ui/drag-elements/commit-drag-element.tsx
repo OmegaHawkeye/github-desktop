@@ -121,6 +121,8 @@ export class CommitDragElement extends React.Component<
           </>
         )
         break
+      case DropTargetType.RepositoryFolder:
+        return null
       default:
         assertNever(
           currentDropTarget,
@@ -144,6 +146,9 @@ export class CommitDragElement extends React.Component<
           case DropTargetType.Commit:
           case DropTargetType.ListInsertionPoint:
             this.setToolTipTimer(1500)
+            break
+          case DropTargetType.RepositoryFolder:
+            this.setState({ showTooltip: false })
             break
           default:
             assertNever(dropTarget, `Unknown drop target type: ${dropTarget}`)

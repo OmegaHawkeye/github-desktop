@@ -84,11 +84,18 @@ export interface IAppState {
    */
   readonly repositories: ReadonlyArray<Repository | CloningRepository>
   readonly folders: ReadonlyArray<Folder>
+  readonly collapsedRepositoryFolderIDs: ReadonlyArray<number>
 
   /**
    * List of IDs of the most recently opened repositories (most recent first)
    */
   readonly recentRepositories: ReadonlyArray<number>
+
+  /**
+   * Open repository tabs (browser-style), ordered left-to-right. Repository ids
+   * must still exist in {@link repositories}.
+   */
+  readonly openRepositoryTabIDs: ReadonlyArray<number>
 
   /**
    * A cache of the latest repository state values, keyed by the repository id
