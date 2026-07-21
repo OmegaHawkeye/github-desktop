@@ -391,6 +391,7 @@ export class GitStore extends BaseStore {
     return this._tagsToPush
   }
 
+  /** The remote tags queued for deletion on the next push. */
   public get tagsToDeleteOnRemote(): ReadonlyArray<string> | null {
     return this._tagsToDeleteOnRemote
   }
@@ -550,9 +551,9 @@ export class GitStore extends BaseStore {
     this.emitUpdate()
   }
 
-  private removeTagToDeleteOnRemote(tagToKeepRemote: string) {
+  private removeTagToDeleteOnRemote(tagNameToRemove: string) {
     const nextTagsToDeleteOnRemote = this._tagsToDeleteOnRemote.filter(
-      tagName => tagName !== tagToKeepRemote
+      tagName => tagName !== tagNameToRemove
     )
 
     if (nextTagsToDeleteOnRemote.length === this._tagsToDeleteOnRemote.length) {
@@ -565,6 +566,7 @@ export class GitStore extends BaseStore {
     this.emitUpdate()
   }
 
+  /** Clears the pending remote tag deletions after a successful push. */
   public clearTagsToDeleteOnRemote() {
     this._tagsToDeleteOnRemote = []
 

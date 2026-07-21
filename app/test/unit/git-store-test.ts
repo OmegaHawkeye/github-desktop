@@ -13,7 +13,7 @@ import { GitStore } from '../../src/lib/stores'
 import { AppFileStatusKind } from '../../src/models/status'
 import { Repository } from '../../src/models/repository'
 import { TipState, IValidBranch } from '../../src/models/tip'
-import { createTag, getCommit, getRemotes, push } from '../../src/lib/git'
+import { getCommit, getRemotes, push } from '../../src/lib/git'
 import { getStatusOrThrow } from '../helpers/status'
 import {
   makeCommit,
@@ -348,8 +348,8 @@ describe('GitStore', () => {
         findDefaultRemote(remotes)
       )
 
-      await createTag(repository, 'my-new-tag', 'HEAD')
-      await push(repository, originRemote, 'master', null, ['my-new-tag'])
+      await exec(['tag', '-a', '-m', '', 'my-new-tag', 'HEAD'], repository.path)
+      await exec(['push', originRemote.name, 'refs/tags/my-new-tag'], repository.path)
 
       await gitStore.deleteTag('my-new-tag', true)
 

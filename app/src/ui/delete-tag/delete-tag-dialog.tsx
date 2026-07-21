@@ -39,7 +39,7 @@ export class DeleteTag extends React.Component<
         id="delete-tag"
         title={__DARWIN__ ? 'Delete Tag' : 'Delete tag'}
         type="warning"
-        onSubmit={this.DeleteTag}
+        onSubmit={this.deleteTag}
         onDismissed={this.props.onDismissed}
         disabled={this.state.isDeleting}
         loading={this.state.isDeleting}
@@ -82,7 +82,7 @@ export class DeleteTag extends React.Component<
     this.setState({ removeFromRemote: event.currentTarget.checked })
   }
 
-  private DeleteTag = async () => {
+  private deleteTag = async () => {
     const { dispatcher, repository, tagName } = this.props
 
     this.setState({ isDeleting: true })

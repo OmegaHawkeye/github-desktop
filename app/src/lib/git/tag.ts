@@ -36,25 +36,6 @@ export async function deleteTag(
 }
 
 /**
- * Delete a tag from the specified remote.
- *
- * @param repository        - The repository in which to delete the remote tag.
- * @param remote            - The remote from which to delete the tag.
- * @param name              - The name of the tag to delete.
- */
-export async function deleteRemoteTag(
-  repository: Repository,
-  remote: IRemote,
-  name: string
-): Promise<void> {
-  const args = ['push', remote.name, `:refs/tags/${name}`]
-
-  await git(args, repository.path, 'deleteRemoteTag', {
-    env: await envForRemoteOperation(remote.url),
-  })
-}
-
-/**
  * Gets all the local tags. Returns a Map with the tag name and the commit it points to.
  *
  * @param repository    The repository in which to get all the tags from.

@@ -2,6 +2,7 @@ import { describe, it, TestContext } from 'node:test'
 import assert from 'node:assert'
 import * as path from 'path'
 import { writeFile } from 'fs/promises'
+import { exec } from 'dugite'
 import { Repository } from '../../../src/models/repository'
 import {
   getCommit,
@@ -111,8 +112,8 @@ describe('git/tag', () => {
         findDefaultRemote(remotes)
       )
 
-      await createTag(repository, 'my-new-tag', 'HEAD')
-      await push(repository, originRemote, 'master', null, ['my-new-tag'])
+      await exec(['tag', '-a', '-m', '', 'my-new-tag', 'HEAD'], repository.path)
+      await exec(['push', originRemote.name, 'refs/tags/my-new-tag'], repository.path)
 
       await push(repository, originRemote, 'master', null, null, {
         tagsToDeleteOnRemote: ['my-new-tag'],
