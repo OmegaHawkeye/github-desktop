@@ -24,6 +24,7 @@ import memoizeOne from 'memoize-one'
 import classNames from 'classnames'
 import { KeyboardShortcut } from '../keyboard-shortcut/keyboard-shortcut'
 import { generateRepositoryListContextMenu } from '../repositories-list/repository-list-item-context-menu'
+import { enableWorktreeSupport } from '../../lib/feature-flag'
 import { SectionFilterList } from '../lib/section-filter-list'
 import { assertNever } from '../../lib/fatal-error'
 import { IAheadBehind } from '../../models/branch'
@@ -767,6 +768,12 @@ export class RepositoriesList extends React.Component<
       onUpdateRepositoryFolder: this.onUpdateRepositoryFolder,
       onViewOnGitHub: this.props.onViewOnGitHub,
       folders: this.props.folders,
+      onCreateWorktree: enableWorktreeSupport()
+        ? this.onCreateWorktree
+        : undefined,
+      onShowWorktrees: enableWorktreeSupport()
+        ? this.onShowWorktrees
+        : undefined,
       repository: item.repository,
       shellLabel: this.props.shellLabel,
     })
@@ -1017,10 +1024,22 @@ export class RepositoriesList extends React.Component<
     })
   }
 
+  private onCreateWorktree = (repository: Repository) => {
+    this.props.dispatcher.showPopup({
+      type: PopupType.AddWorktree,
+      repository,
+    })
+  }
+
   private onUpdateRepositoryFolder = (
     repository: Repository,
     folderID: number | null
   ) => {
     this.props.dispatcher.updateRepositoryFolder(repository, folderID)
+  }
+
+  private onShowWorktrees = (repository: Repository) => {
+    this.props.dispatcher.selectRepository(repository)
+    this.props.dispatcher.showWorktreesFoldout()
   }
 }

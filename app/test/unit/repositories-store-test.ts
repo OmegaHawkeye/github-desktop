@@ -1,5 +1,6 @@
-import { describe, it, beforeEach } from 'node:test'
+import { describe, it, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert'
+import { join } from 'path'
 import { RepositoriesStore } from '../../src/lib/stores/repositories-store'
 import { TestRepositoriesDatabase } from '../helpers/databases'
 import { IAPIFullRepository, getDotComAPIEndpoint } from '../../src/lib/api'
@@ -15,10 +16,14 @@ describe('RepositoriesStore', () => {
     repositoriesStore = new RepositoriesStore(repoDb)
   })
 
+  afterEach(() => {
+    repoDb.close()
+  })
+
   describe('adding a new repository', () => {
     it('contains the added repository', async () => {
       const repoPath = '/some/cool/path'
-      await repositoriesStore.addRepository(repoPath)
+      await repositoriesStore.addRepository(repoPath, join(repoPath, '.git'))
 
       const repositories = await repositoriesStore.getAll()
       assert.equal(repositories[0].path, repoPath)
@@ -27,8 +32,14 @@ describe('RepositoriesStore', () => {
 
   describe('getting all repositories', () => {
     it('returns multiple repositories', async () => {
-      await repositoriesStore.addRepository('/some/cool/path')
-      await repositoriesStore.addRepository('/some/other/path')
+      await repositoriesStore.addRepository(
+        '/some/cool/path',
+        '/some/cool/path/.git'
+      )
+      await repositoriesStore.addRepository(
+        '/some/other/path',
+        '/some/other/path/.git'
+      )
 
       const repositories = await repositoriesStore.getAll()
       assert.equal(repositories.length, 2)
@@ -39,7 +50,8 @@ describe('RepositoriesStore', () => {
     it('creates folders and assigns a repository to one', async () => {
       const folder = await repositoriesStore.createFolder('Work')
       const repository = await repositoriesStore.addRepository(
-        '/some/cool/path'
+        '/some/cool/path',
+        undefined
       )
 
       await repositoriesStore.updateRepositoryFolder(repository, folder.id)
@@ -55,7 +67,7 @@ describe('RepositoriesStore', () => {
     it('persists reordered folder sort order without changing assignments', async () => {
       const workFolder = await repositoriesStore.createFolder('Work')
       const personalFolder = await repositoriesStore.createFolder('Personal')
-      await repositoriesStore.addRepository('/some/cool/path', {
+      await repositoriesStore.addRepository('/some/cool/path', undefined, {
         folderID: workFolder.id,
       })
 
@@ -82,6 +94,7 @@ describe('RepositoriesStore', () => {
       const folder = await repositoriesStore.createFolder('Work')
       const repository = await repositoriesStore.addRepository(
         '/some/cool/path',
+        undefined,
         {
           folderID: folder.id,
         }
@@ -100,10 +113,10 @@ describe('RepositoriesStore', () => {
     it('removes nested folders and all descendant assignments', async () => {
       const parent = await repositoriesStore.createFolder('Parent')
       const child = await repositoriesStore.createFolder('Child', parent.id)
-      await repositoriesStore.addRepository('/parent/repo', {
+      await repositoriesStore.addRepository('/parent/repo', undefined, {
         folderID: parent.id,
       })
-      await repositoriesStore.addRepository('/child/repo', {
+      await repositoriesStore.addRepository('/child/repo', undefined, {
         folderID: child.id,
       })
 
@@ -175,7 +188,10 @@ describe('RepositoriesStore', () => {
 
     it('adds a new GitHub repository', async () => {
       await repositoriesStore.setGitHubRepository(
-        await repositoriesStore.addRepository('/some/cool/path'),
+        await repositoriesStore.addRepository(
+          '/some/cool/path',
+          '/some/cool/path/.git'
+        ),
         await repositoriesStore.upsertGitHubRepository(endpoint, apiRepo)
       )
 
@@ -192,12 +208,18 @@ describe('RepositoriesStore', () => {
 
     it('reuses an existing GitHub repository', async () => {
       const firstRepo = await repositoriesStore.setGitHubRepository(
-        await repositoriesStore.addRepository('/some/cool/path'),
+        await repositoriesStore.addRepository(
+          '/some/cool/path',
+          '/some/cool/path/.git'
+        ),
         await repositoriesStore.upsertGitHubRepository(endpoint, apiRepo)
       )
 
       const secondRepo = await repositoriesStore.setGitHubRepository(
-        await repositoriesStore.addRepository('/some/other/path'),
+        await repositoriesStore.addRepository(
+          '/some/other/path',
+          '/some/other/path/.git'
+        ),
         await repositoriesStore.upsertGitHubRepository(endpoint, apiRepo)
       )
 

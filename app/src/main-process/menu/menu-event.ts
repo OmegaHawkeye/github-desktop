@@ -8,6 +8,8 @@ export type MenuEvent =
   | 'add-local-repository'
   | 'create-branch'
   | 'show-branches'
+  | 'show-worktrees'
+  | 'create-worktree'
   | 'remove-repository'
   | 'create-repository'
   | 'rename-branch'
@@ -59,6 +61,7 @@ const TestMenuEvents = [
   'test-arm64-banner',
   'test-confirm-committing-conflicted-files',
   'test-cherry-pick-conflicts-banner',
+  'test-copilot-snapshot-card',
   'test-discarded-changes-will-be-unrecoverable',
   'test-do-you-want-fork-this-repository',
   'test-files-too-large',
@@ -88,6 +91,7 @@ const TestMenuEvents = [
   'test-update-existing-git-lfs-filters',
   'test-upstream-already-exists',
   'test-about-dialog',
+  'test-cli-action',
 ] as const
 
 export type TestMenuEvent = typeof TestMenuEvents[number]
