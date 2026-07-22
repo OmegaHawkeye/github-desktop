@@ -105,10 +105,94 @@ export class FolderMenu extends React.Component<
     this.props.onClose()
   }
 
+  private onSwatchButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    this.onSwatchClick(event.currentTarget.dataset.colorValue ?? '')
+  }
+
+  private onRemoveColorClick = () => {
+    this.setColor(null)
+  }
+
   private onCustomColorChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     this.setColor(event.currentTarget.value)
+  }
+
+  private onNewSubfolderClick = () => {
+    this.run(() =>
+      this.props.dispatcher.showPopup({
+        type: PopupType.CreateRepositoryFolder,
+        parentFolderID: this.props.folder.id,
+      })
+    )
+  }
+
+  private onNewFolderBeforeClick = () => {
+    this.run(() =>
+      this.props.dispatcher.showPopup({
+        type: PopupType.CreateRepositoryFolder,
+        parentFolderID: this.props.folder.parentFolderID,
+        positionRelativeTo: { folder: this.props.folder, position: 'before' },
+      })
+    )
+  }
+
+  private onNewFolderAfterClick = () => {
+    this.run(() =>
+      this.props.dispatcher.showPopup({
+        type: PopupType.CreateRepositoryFolder,
+        parentFolderID: this.props.folder.parentFolderID,
+        positionRelativeTo: { folder: this.props.folder, position: 'after' },
+      })
+    )
+  }
+
+  private onMoveUpClick = () => {
+    const { previous } = getFolderSiblings(
+      this.props.folder,
+      this.props.folders
+    )
+    if (previous !== null) {
+      this.run(() =>
+        this.props.dispatcher.moveFolderRelativeTo(
+          this.props.folder,
+          previous,
+          'before'
+        )
+      )
+    }
+  }
+
+  private onMoveDownClick = () => {
+    const { next } = getFolderSiblings(this.props.folder, this.props.folders)
+    if (next !== null) {
+      this.run(() =>
+        this.props.dispatcher.moveFolderRelativeTo(
+          this.props.folder,
+          next,
+          'after'
+        )
+      )
+    }
+  }
+
+  private onRenameFolderClick = () => {
+    this.run(() =>
+      this.props.dispatcher.showPopup({
+        type: PopupType.RenameRepositoryFolder,
+        folder: this.props.folder,
+      })
+    )
+  }
+
+  private onDeleteFolderClick = () => {
+    this.run(() =>
+      this.props.dispatcher.showPopup({
+        type: PopupType.DeleteRepositoryFolder,
+        folder: this.props.folder,
+      })
+    )
   }
 
   private renderColorSection() {
@@ -123,14 +207,12 @@ export class FolderMenu extends React.Component<
               <button
                 key={c.value}
                 type="button"
-                className={
-                  'folder-menu-swatch' + (selected ? ' selected' : '')
-                }
+                className={'folder-menu-swatch' + (selected ? ' selected' : '')}
                 style={{ backgroundColor: c.value }}
-                title={selected ? `${c.name} (click to clear)` : c.name}
-                aria-label={c.name}
+                aria-label={selected ? `${c.name} (click to clear)` : c.name}
                 aria-pressed={selected}
-                onClick={() => this.onSwatchClick(c.value)}
+                data-color-value={c.value}
+                onClick={this.onSwatchButtonClick}
               >
                 {selected && <Octicon symbol={octicons.check} />}
               </button>
@@ -153,10 +235,9 @@ export class FolderMenu extends React.Component<
           <button
             type="button"
             className="folder-menu-remove-color"
-            title="Remove color"
             aria-label="Remove color"
             disabled={current === null}
-            onClick={() => this.setColor(null)}
+            onClick={this.onRemoveColorClick}
           >
             <Octicon symbol={octicons.trash} />
           </button>
@@ -166,8 +247,10 @@ export class FolderMenu extends React.Component<
   }
 
   public render() {
-    const { folder, folders, dispatcher } = this.props
-    const { previous, next } = getFolderSiblings(folder, folders)
+    const { previous, next } = getFolderSiblings(
+      this.props.folder,
+      this.props.folders
+    )
 
     return (
       <div
@@ -180,44 +263,21 @@ export class FolderMenu extends React.Component<
         <button
           type="button"
           className="folder-menu-item"
-          onClick={() =>
-            this.run(() =>
-              dispatcher.showPopup({
-                type: PopupType.CreateRepositoryFolder,
-                parentFolderID: folder.id,
-              })
-            )
-          }
+          onClick={this.onNewSubfolderClick}
         >
           New subfolder…
         </button>
         <button
           type="button"
           className="folder-menu-item"
-          onClick={() =>
-            this.run(() =>
-              dispatcher.showPopup({
-                type: PopupType.CreateRepositoryFolder,
-                parentFolderID: folder.parentFolderID,
-                positionRelativeTo: { folder, position: 'before' },
-              })
-            )
-          }
+          onClick={this.onNewFolderBeforeClick}
         >
           New folder before…
         </button>
         <button
           type="button"
           className="folder-menu-item"
-          onClick={() =>
-            this.run(() =>
-              dispatcher.showPopup({
-                type: PopupType.CreateRepositoryFolder,
-                parentFolderID: folder.parentFolderID,
-                positionRelativeTo: { folder, position: 'after' },
-              })
-            )
-          }
+          onClick={this.onNewFolderAfterClick}
         >
           New folder after…
         </button>
@@ -228,12 +288,7 @@ export class FolderMenu extends React.Component<
           type="button"
           className="folder-menu-item"
           disabled={previous === null}
-          onClick={() =>
-            previous !== null &&
-            this.run(() =>
-              dispatcher.moveFolderRelativeTo(folder, previous, 'before')
-            )
-          }
+          onClick={this.onMoveUpClick}
         >
           Move up
         </button>
@@ -241,12 +296,7 @@ export class FolderMenu extends React.Component<
           type="button"
           className="folder-menu-item"
           disabled={next === null}
-          onClick={() =>
-            next !== null &&
-            this.run(() =>
-              dispatcher.moveFolderRelativeTo(folder, next, 'after')
-            )
-          }
+          onClick={this.onMoveDownClick}
         >
           Move down
         </button>
@@ -260,28 +310,14 @@ export class FolderMenu extends React.Component<
         <button
           type="button"
           className="folder-menu-item"
-          onClick={() =>
-            this.run(() =>
-              dispatcher.showPopup({
-                type: PopupType.RenameRepositoryFolder,
-                folder,
-              })
-            )
-          }
+          onClick={this.onRenameFolderClick}
         >
           Rename folder…
         </button>
         <button
           type="button"
           className="folder-menu-item destructive"
-          onClick={() =>
-            this.run(() =>
-              dispatcher.showPopup({
-                type: PopupType.DeleteRepositoryFolder,
-                folder,
-              })
-            )
-          }
+          onClick={this.onDeleteFolderClick}
         >
           Delete folder…
         </button>

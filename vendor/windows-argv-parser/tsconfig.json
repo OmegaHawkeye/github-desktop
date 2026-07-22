@@ -14,7 +14,8 @@
     "sourceMap": true,
     "strict": true,
     "outDir": "./build",
-    "useUnknownInCatchVariables": false
+    "useUnknownInCatchVariables": false,
+    "types": ["node"]
   },
   "include": ["*.ts"],
   "exclude": ["node_modules", "build"],

@@ -165,6 +165,80 @@ export class FolderOverview extends React.Component<
     this.setState({ folderMenu: null })
   }
 
+  private onRepositoryButtonClick = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    const key = event.currentTarget.dataset.repositoryKey
+    const repository = this.props.repositories.find(
+      r => `${r.constructor.name}-${r.id}` === key
+    )
+    if (repository !== undefined) {
+      this.props.onSelectRepository(repository)
+    }
+  }
+
+  private onRepositoryButtonContextMenu = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    const key = event.currentTarget.dataset.repositoryKey
+    const repository = this.props.repositories.find(
+      r => `${r.constructor.name}-${r.id}` === key
+    )
+    if (repository !== undefined) {
+      this.onRepositoryContextMenu(repository, event)
+    }
+  }
+
+  private onFolderHeaderDragStart = (event: React.DragEvent<HTMLElement>) => {
+    const folderID = Number(event.currentTarget.dataset.folderId)
+    const folder = this.props.folders.find(f => f.id === folderID)
+    if (folder !== undefined) {
+      this.onFolderDragStart(folder, event)
+    }
+  }
+
+  private onFolderHeaderDragOver = (event: React.DragEvent<HTMLElement>) => {
+    const folderID = Number(event.currentTarget.dataset.folderId)
+    const folder = this.props.folders.find(f => f.id === folderID)
+    if (folder !== undefined) {
+      this.onFolderDragOver(folder, event)
+    }
+  }
+
+  private onFolderHeaderDragLeave = (event: React.DragEvent<HTMLElement>) => {
+    const folderID = Number(event.currentTarget.dataset.folderId)
+    const folder = this.props.folders.find(f => f.id === folderID)
+    if (folder !== undefined) {
+      this.onFolderDragLeave(folder)
+    }
+  }
+
+  private onFolderHeaderDrop = (event: React.DragEvent<HTMLElement>) => {
+    const folderID = Number(event.currentTarget.dataset.folderId)
+    const folder = this.props.folders.find(f => f.id === folderID)
+    if (folder !== undefined) {
+      this.onFolderDrop(folder, event)
+    }
+  }
+
+  private onFolderHeaderContextMenu = (
+    event: React.MouseEvent<HTMLElement>
+  ) => {
+    const folderID = Number(event.currentTarget.dataset.folderId)
+    const folder = this.props.folders.find(f => f.id === folderID)
+    if (folder !== undefined) {
+      this.onFolderContextMenu(folder, event)
+    }
+  }
+
+  private onToggleCollapsedClick = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation()
+    const folderID = Number(event.currentTarget.dataset.folderId)
+    this.props.dispatcher.toggleCollapsedRepositoryFolder(folderID)
+  }
+
   private renderFolderMenu() {
     const { folderMenu } = this.state
     if (folderMenu === null) {
@@ -210,9 +284,7 @@ export class FolderOverview extends React.Component<
     ])
   }
 
-  private onBackgroundContextMenu = (
-    event: React.MouseEvent<HTMLElement>
-  ) => {
+  private onBackgroundContextMenu = (event: React.MouseEvent<HTMLElement>) => {
     event.preventDefault()
     showContextualMenu([getNewFolderMenuItem(this.props.dispatcher)])
   }
@@ -240,24 +312,26 @@ export class FolderOverview extends React.Component<
       style.backgroundColor = hexToRgba(folderColor, 0.28)
     }
 
+    const repositoryKey = `${repository.constructor.name}-${repository.id}`
+
     return (
       <button
         type="button"
-        key={`${repository.constructor.name}-${repository.id}`}
+        key={repositoryKey}
         className={
           'folder-overview-repository' + (isSelected ? ' selected' : '')
         }
         style={style}
-        onClick={() => this.props.onSelectRepository(repository)}
-        onContextMenu={e => this.onRepositoryContextMenu(repository, e)}
-        title={repository.path}
+        data-repository-key={repositoryKey}
+        onClick={this.onRepositoryButtonClick}
+        onContextMenu={this.onRepositoryButtonContextMenu}
       >
         <Octicon className="repo-icon" symbol={icon} />
         <span className="repo-name">{this.getDisplayTitle(repository)}</span>
         <span className="repo-path">{repository.path}</span>
         <span className="repo-indicators">
           {changedFilesCount > 0 && (
-            <span className="changes" title="Uncommitted changes">
+            <span className="changes" role="img" aria-label="Uncommitted changes">
               <Octicon symbol={octicons.dotFill} />
             </span>
           )}
@@ -309,19 +383,21 @@ export class FolderOverview extends React.Component<
           })}
           style={headerStyle}
           draggable={true}
-          onDragStart={e => this.onFolderDragStart(folder, e)}
-          onDragOver={e => this.onFolderDragOver(folder, e)}
-          onDragLeave={() => this.onFolderDragLeave(folder)}
+          data-folder-id={String(folder.id)}
+          onDragStart={this.onFolderHeaderDragStart}
+          onDragOver={this.onFolderHeaderDragOver}
+          onDragLeave={this.onFolderHeaderDragLeave}
           onDragEnd={this.onFolderDragEnd}
-          onDrop={e => this.onFolderDrop(folder, e)}
-          onContextMenu={e => this.onFolderContextMenu(folder, e)}
+          onDrop={this.onFolderHeaderDrop}
+          onContextMenu={this.onFolderHeaderContextMenu}
         >
           <button
             type="button"
             className="folder-overview-disclosure"
             aria-expanded={!collapsed}
             aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${folder.name}`}
-            onClick={e => this.onToggleCollapsed(folder, e)}
+            data-folder-id={String(folder.id)}
+            onClick={this.onToggleCollapsedClick}
           >
             <Octicon
               symbol={collapsed ? octicons.chevronRight : octicons.chevronDown}
@@ -337,14 +413,6 @@ export class FolderOverview extends React.Component<
           repos.map(r => this.renderRepository(r, depth, folder.color))}
       </div>
     )
-  }
-
-  private onToggleCollapsed = (
-    folder: Folder,
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    event.stopPropagation()
-    this.props.dispatcher.toggleCollapsedRepositoryFolder(folder.id)
   }
 
   private renderNoFolderSection() {

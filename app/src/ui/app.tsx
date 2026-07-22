@@ -1094,7 +1094,6 @@ export class App extends React.Component<IAppProps, IAppState> {
     document.addEventListener('focus', this.onDocumentFocus, {
       capture: true,
     })
-
   }
 
   private onDocumentFocus = (event: FocusEvent) => {

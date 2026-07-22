@@ -161,9 +161,8 @@ interface ISectionFilterListProps<T extends IFilterListItem, GroupIdentifier> {
    * Optional predicate for keeping a group visible even when it has no items.
    * When true, a section containing only the header row will still be rendered.
    */
-  readonly shouldKeepGroupWhenEmpty?: (
-    identifier: GroupIdentifier
-  ) => boolean
+  // eslint-disable-next-line react/no-unused-prop-types
+  readonly shouldKeepGroupWhenEmpty?: (identifier: GroupIdentifier) => boolean
 
   /**
    * A reference to a TextBox that will be used to control this component.
