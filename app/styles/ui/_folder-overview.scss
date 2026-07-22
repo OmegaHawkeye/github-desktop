@@ -22,6 +22,11 @@
       font-size: var(--font-size-lg);
       font-weight: var(--font-weight-semibold);
     }
+
+    .folder-overview-search {
+      flex: 0 1 260px;
+      margin-left: var(--spacing);
+    }
   }
 
   .folder-overview-content {
@@ -133,13 +138,21 @@
     }
 
     &.selected {
-      background: var(--list-item-selected-background-color);
-      color: var(--list-item-selected-text-color);
+      background: var(--box-selected-background-color);
+      color: var(--box-selected-text-color);
 
       .repo-path,
       .repo-indicators .octicon {
-        color: var(--list-item-selected-text-color);
+        color: var(--box-selected-text-color);
       }
+    }
+
+    // Repositories inside a colored folder keep the neutral panel background
+    // and are tied to their folder by a left edge in the folder's color (set
+    // inline as a custom property). The hover and selection backgrounds come
+    // from the rules above and show through unchanged.
+    &.has-color {
+      box-shadow: inset 3px 0 0 var(--folder-accent-color);
     }
 
     .repo-icon {

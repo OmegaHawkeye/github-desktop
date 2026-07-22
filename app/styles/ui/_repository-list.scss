@@ -113,10 +113,13 @@
     width: 100%;
     flex: 1 1 auto;
     align-self: stretch;
-    min-height: 34px;
+    // Fill the fixed virtualized row height exactly. A larger min-height plus a
+    // top margin used to overflow the row and get clipped, which showed up as a
+    // collapsed folder header looking "cut off".
+    min-height: 0;
     box-sizing: border-box;
     padding: var(--spacing-half) var(--spacing);
-    margin-top: var(--spacing-half);
+    margin-top: 0;
     border-radius: var(--border-radius);
 
     &.active-drop-target {
@@ -148,22 +151,35 @@
     }
 
     // When the folder has a custom color its background/text are set inline.
-    // Give it a bit of polish: keep the chevron/text readable, add a soft
-    // inner outline for definition and a subtle drop shadow for depth.
+    // The header is the top of a solid colored backdrop that continues down
+    // through the folder's repositories, so only round its top corners and
+    // keep the bottom flush with the first repository row below it.
     &.has-color {
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-        0 1px 2px rgba(0, 0, 0, 0.25);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
 
       .octicon,
       .repository-folder-disclosure-button {
         color: inherit;
       }
 
+      // Keep the disclosure chevron readable on the folder colour on hover.
+      .repository-folder-disclosure-button:hover {
+        color: inherit;
+      }
+
+      // Flat, borderless hover: a subtle darken of the folder colour, matching
+      // the simple hover feedback used elsewhere in GitHub Desktop (an inline
+      // background can't be recoloured via CSS directly, so we overlay it).
       &:hover {
-        // Keep the inline color on hover (a subtle overlay isn't possible with
-        // an inline background) but lift the shadow slightly.
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2),
-          0 2px 4px rgba(0, 0, 0, 0.3);
+        box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.1);
+      }
+
+      // Collapsed folders have no repositories below them, so round every
+      // corner instead of leaving a flat bottom edge that looks cut off.
+      &.collapsed {
+        border-bottom-left-radius: var(--border-radius);
+        border-bottom-right-radius: var(--border-radius);
       }
     }
   }
@@ -173,19 +189,24 @@
   // belong to (and where you currently are in the tree) without looking patchy.
   .repository-folder-section-drop-target {
     background: transparent;
+    // A quiet, static indent guide marks folder membership. It does not change
+    // on hover — hover shows only the plain list-item background highlight, the
+    // same simple feedback GitHub Desktop uses (no accent outline).
     box-shadow: inset 2px 0 0 var(--box-border-color);
 
-    &:hover {
-      box-shadow: inset 2px 0 0 var(--accent-color);
-    }
-
-    // For repositories inside a colored folder the background tint (set inline)
-    // already ties them to the folder, so drop the plain indent guide.
+    // Repositories inside a colored folder keep the neutral panel background
+    // (matching the dropdowns) and are tied to their folder by a left edge in
+    // the folder's color, passed in as a custom property. Because the row
+    // background stays neutral, the built-in hover and selection backgrounds
+    // continue to show through unchanged.
     &.has-color {
-      box-shadow: none;
+      // Square corners so the coloured left edge reads as one continuous bar
+      // running down the folder's repositories (matches the header above).
+      border-radius: 0;
+      box-shadow: inset 3px 0 0 var(--repository-folder-accent-color);
 
       &:hover {
-        box-shadow: none;
+        box-shadow: inset 3px 0 0 var(--repository-folder-accent-color);
       }
     }
   }
@@ -216,8 +237,10 @@
       color 0.12s ease,
       transform 0.12s ease;
 
+    // Darken the chevron slightly on hover (a translucent overlay works on both
+    // the plain header background and a custom folder colour).
     &:hover {
-      background: var(--list-item-hover-background-color);
+      background: rgba(0, 0, 0, 0.18);
       color: var(--text-color);
     }
 

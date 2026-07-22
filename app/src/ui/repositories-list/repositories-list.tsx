@@ -44,7 +44,6 @@ import {
 import {
   getNewFolderMenuItem,
   getReadableTextColor,
-  hexToRgba,
 } from './folder-context-menu'
 import { isFolderHiddenByCollapsedAncestor } from './folder-utils'
 import { FolderMenu } from './folder-menu'
@@ -264,12 +263,17 @@ export class RepositoriesList extends React.Component<
 
     if (item.group.kind === 'folder') {
       const folderColor = item.group.folder.color
-      // Repositories inside a colored folder share that color as a subtle
-      // background tint so the folder and its contents read as one zone. A
-      // translucent tint keeps the selection/hover highlights visible.
-      const sectionStyle: React.CSSProperties | undefined =
+      // Repositories inside a colored folder sit on the normal (neutral) panel
+      // background — matching the repository/branch dropdowns — and are tied to
+      // their folder by a left edge in the folder's color. The color is passed
+      // to CSS as a custom property (see
+      // .repository-folder-section-drop-target.has-color) so the built-in hover
+      // and selection backgrounds keep working unchanged.
+      const sectionStyle =
         folderColor !== null
-          ? { backgroundColor: hexToRgba(folderColor, 0.28) }
+          ? ({
+              '--repository-folder-accent-color': folderColor,
+            } as React.CSSProperties)
           : undefined
 
       content = (
@@ -473,6 +477,7 @@ export class RepositoriesList extends React.Component<
           'repository-folder-header',
           {
             'has-color': color !== null,
+            collapsed: isCollapsed,
             'active-drop-target': activeDropTarget !== null,
             'repository-drop-target': activeDropTarget?.kind === 'repository',
             'folder-drop-before': activeDropTarget?.position === 'before',

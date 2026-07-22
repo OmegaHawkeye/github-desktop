@@ -23,6 +23,10 @@ $overlay-background-color: rgba(0, 0, 0, 0.4);
   --text-secondary-color-muted: #{lighten($gray-500, 30%)};
   --background-color: #{$white};
 
+  // Background for the repository picker foldout (Current repository dropdown).
+  // Matches the main foldout/dropdown background so nothing shows through.
+  --repository-sidebar-background: var(--background-color);
+
   --button-height: 25px;
 
   --button-background: #{$blue};

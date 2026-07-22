@@ -7,6 +7,7 @@ import { Octicon } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
 import classNames from 'classnames'
 import { Dispatcher } from '../dispatcher'
+import { TextBox } from '../lib/text-box'
 import { showContextualMenu } from '../../lib/menu-item'
 import {
   Repositoryish,
@@ -17,7 +18,6 @@ import {
   getMoveRepositoryToFolderMenuItem,
   getNewFolderMenuItem,
   getReadableTextColor,
-  hexToRgba,
 } from '../repositories-list/folder-context-menu'
 import {
   isFolderSelfOrDescendant,
@@ -59,6 +59,8 @@ interface IFolderOverviewState {
     readonly x: number
     readonly y: number
   } | null
+  /** The text entered by the user to filter folders and repositories. */
+  readonly filterText: string
 }
 
 /**
@@ -71,7 +73,62 @@ export class FolderOverview extends React.Component<
 > {
   public constructor(props: IFolderOverviewProps) {
     super(props)
-    this.state = { dragFolderID: null, dropTarget: null, folderMenu: null }
+    this.state = {
+      dragFolderID: null,
+      dropTarget: null,
+      folderMenu: null,
+      filterText: '',
+    }
+  }
+
+  private onFilterTextChanged = (filterText: string) => {
+    this.setState({ filterText })
+  }
+
+  private onSearchCleared = () => {
+    this.setState({ filterText: '' })
+  }
+
+  /**
+   * Whether the user is currently filtering. When filtering, folders are
+   * expanded regardless of their collapsed state and only matching content is
+   * shown.
+   */
+  private get isFiltering(): boolean {
+    return this.state.filterText.trim().length > 0
+  }
+
+  private repositoryMatchesFilter = (repository: Repositoryish): boolean => {
+    const query = this.state.filterText.trim().toLowerCase()
+    if (query.length === 0) {
+      return true
+    }
+    return (
+      this.getDisplayTitle(repository).toLowerCase().includes(query) ||
+      repository.path.toLowerCase().includes(query)
+    )
+  }
+
+  private folderMatchesFilter(folder: Folder): boolean {
+    const query = this.state.filterText.trim().toLowerCase()
+    return query.length === 0 || folder.name.toLowerCase().includes(query)
+  }
+
+  /**
+   * The repositories to display for a given folder, taking the active filter
+   * into account. When the folder's own name matches the filter, all of its
+   * repositories are shown; otherwise only the repositories that match.
+   */
+  private getFolderRepositories(folder: Folder): ReadonlyArray<Repositoryish> {
+    const repos = this.props.repositories.filter(
+      r => r instanceof Repository && r.folderID === folder.id
+    )
+
+    if (!this.isFiltering || this.folderMatchesFilter(folder)) {
+      return repos
+    }
+
+    return repos.filter(this.repositoryMatchesFilter)
   }
 
   private onFolderDragStart = (
@@ -210,9 +267,7 @@ export class FolderOverview extends React.Component<
     ])
   }
 
-  private onBackgroundContextMenu = (
-    event: React.MouseEvent<HTMLElement>
-  ) => {
+  private onBackgroundContextMenu = (event: React.MouseEvent<HTMLElement>) => {
     event.preventDefault()
     showContextualMenu([getNewFolderMenuItem(this.props.dispatcher)])
   }
@@ -235,18 +290,24 @@ export class FolderOverview extends React.Component<
         ? octicons.desktopDownload
         : octicons.repo
 
-    const style: React.CSSProperties = { paddingLeft: 24 + depth * 16 }
-    if (folderColor !== null && !isSelected) {
-      style.backgroundColor = hexToRgba(folderColor, 0.28)
-    }
+    // Repositories inside a colored folder keep the neutral panel background
+    // (matching the folder header and the sidebar) and are tied to their
+    // folder by a left edge in the folder's color, passed to CSS as a custom
+    // property so the built-in hover/selection backgrounds keep working.
+    const hasColor = folderColor !== null
+    const style = {
+      paddingLeft: 24 + depth * 16,
+      ...(hasColor ? { '--folder-accent-color': folderColor } : {}),
+    } as React.CSSProperties
 
     return (
       <button
         type="button"
         key={`${repository.constructor.name}-${repository.id}`}
-        className={
-          'folder-overview-repository' + (isSelected ? ' selected' : '')
-        }
+        className={classNames('folder-overview-repository', {
+          selected: isSelected,
+          'has-color': hasColor,
+        })}
         style={style}
         onClick={() => this.props.onSelectRepository(repository)}
         onContextMenu={e => this.onRepositoryContextMenu(repository, e)}
@@ -281,9 +342,17 @@ export class FolderOverview extends React.Component<
   private renderFolderSection = (folder: Folder) => {
     const byID = new Map(this.props.folders.map(f => [f.id, f]))
     const depth = folderDepth(folder, byID)
-    const repos = this.props.repositories.filter(
-      r => r instanceof Repository && r.folderID === folder.id
-    )
+    const repos = this.getFolderRepositories(folder)
+
+    // While filtering, hide folders that neither match by name nor contain any
+    // matching repositories.
+    if (
+      this.isFiltering &&
+      !this.folderMatchesFilter(folder) &&
+      repos.length === 0
+    ) {
+      return null
+    }
 
     const dropTarget =
       this.state.dropTarget?.folderID === folder.id
@@ -296,7 +365,8 @@ export class FolderOverview extends React.Component<
       headerStyle.color = getReadableTextColor(folder.color)
     }
 
-    const collapsed = this.props.collapsedFolderIDs.includes(folder.id)
+    const collapsed =
+      !this.isFiltering && this.props.collapsedFolderIDs.includes(folder.id)
 
     return (
       <div className="folder-overview-section" key={`folder-${folder.id}`}>
@@ -348,9 +418,9 @@ export class FolderOverview extends React.Component<
   }
 
   private renderNoFolderSection() {
-    const repos = this.props.repositories.filter(
-      r => !(r instanceof Repository) || r.folderID === null
-    )
+    const repos = this.props.repositories
+      .filter(r => !(r instanceof Repository) || r.folderID === null)
+      .filter(this.repositoryMatchesFilter)
 
     if (repos.length === 0) {
       return null
@@ -373,9 +443,26 @@ export class FolderOverview extends React.Component<
   public render() {
     const byID = new Map(this.props.folders.map(f => [f.id, f]))
     const collapsedIDSet = new Set(this.props.collapsedFolderIDs)
+    const { isFiltering } = this
     const orderedFolders = getFoldersInTreeOrder(this.props.folders).filter(
-      f => !isFolderHiddenByCollapsedAncestor(f, byID, collapsedIDSet)
+      f =>
+        isFiltering || !isFolderHiddenByCollapsedAncestor(f, byID, collapsedIDSet)
     )
+
+    // Determine whether any content will be rendered so we can show an
+    // appropriate empty/no-results message.
+    const hasVisibleFolder = orderedFolders.some(
+      f =>
+        !isFiltering ||
+        this.folderMatchesFilter(f) ||
+        this.getFolderRepositories(f).length > 0
+    )
+    const hasVisibleNoFolderRepo = this.props.repositories.some(
+      r =>
+        (!(r instanceof Repository) || r.folderID === null) &&
+        this.repositoryMatchesFilter(r)
+    )
+    const hasResults = hasVisibleFolder || hasVisibleNoFolderRepo
 
     return (
       <div className="folder-overview">
@@ -384,6 +471,17 @@ export class FolderOverview extends React.Component<
             <Octicon symbol={octicons.fileDirectory} />
             Folder overview
           </div>
+          <TextBox
+            className="folder-overview-search"
+            type="search"
+            placeholder="Search folders and repositories"
+            ariaLabel="Search folders and repositories"
+            value={this.state.filterText}
+            prefixedIcon={octicons.search}
+            displayClearButton={true}
+            onValueChanged={this.onFilterTextChanged}
+            onSearchCleared={this.onSearchCleared}
+          />
         </div>
         <div
           className="folder-overview-content"
@@ -391,10 +489,13 @@ export class FolderOverview extends React.Component<
         >
           {orderedFolders.map(this.renderFolderSection)}
           {this.renderNoFolderSection()}
-          {orderedFolders.length === 0 && (
+          {!hasResults && (
             <div className="folder-overview-empty">
-              You haven't created any folders yet. Right-click a repository (or
-              the empty space) in the repository list to create one.
+              {isFiltering
+                ? 'No folders or repositories match your search.'
+                : "You haven't created any folders yet. Right-click a " +
+                  'repository (or the empty space) in the repository list to ' +
+                  'create one.'}
             </div>
           )}
         </div>
