@@ -8,7 +8,7 @@ import {
   DefaultShellLabel,
 } from '../lib/context-menu'
 import { Folder } from '../../models/folder'
-import { getFolderPathLabel, getFoldersInTreeOrder } from './group-repositories'
+import { getMoveRepositoryToFolderMenuItem } from './folder-context-menu'
 
 interface IRepositoryListItemContextMenuConfig {
   repository: Repositoryish
@@ -125,35 +125,12 @@ const buildFolderMenuItems = (
     return []
   }
 
-  const orderedFolders = getFoldersInTreeOrder(config.folders)
-
-  const submenu: Array<IMenuItem> = [
-    {
-      label: __DARWIN__ ? 'No Folder' : 'No folder',
-      action: () => config.onUpdateRepositoryFolder(repository, null),
-      type: 'checkbox',
-      checked: repository.folderID === null,
-    },
-    ...orderedFolders.map(folder => {
-      return {
-        label: getFolderPathLabel(folder, config.folders),
-        action: () => config.onUpdateRepositoryFolder(repository, folder.id),
-        type: 'checkbox' as const,
-        checked: repository.folderID === folder.id,
-      }
-    }),
-    { type: 'separator' as const },
-    {
-      label: __DARWIN__ ? 'New Folder…' : 'New folder…',
-      action: () => config.onCreateRepositoryFolder(repository),
-    },
-  ]
-
   return [
-    {
-      label: __DARWIN__ ? 'Move to Folder' : 'Move to folder',
-      submenu,
-    },
+    getMoveRepositoryToFolderMenuItem(repository, config.folders, {
+      onUpdateFolder: folderID =>
+        config.onUpdateRepositoryFolder(repository, folderID),
+      onCreateFolder: () => config.onCreateRepositoryFolder(repository),
+    }),
   ]
 }
 

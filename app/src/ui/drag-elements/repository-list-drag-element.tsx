@@ -5,20 +5,20 @@ import { Repository } from '../../models/repository'
 import { Octicon, iconForRepository } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
 
-interface IRepositoryListDragElementProps {
-  readonly repository?: Repository
-  readonly folder?: Folder
-}
+type IRepositoryListDragElementProps =
+  | { readonly kind: 'repository'; readonly repository: Repository }
+  | { readonly kind: 'folder'; readonly folder: Folder }
 
 export class RepositoryListDragElement extends React.PureComponent<IRepositoryListDragElementProps> {
   public render() {
-    const { repository, folder } = this.props
+    const { kind } = this.props
     const icon =
-      repository !== undefined
-        ? iconForRepository(repository)
+      kind === 'repository'
+        ? iconForRepository(this.props.repository)
         : octicons.fileDirectoryFill
-    const label = repository?.name ?? folder?.name ?? ''
-    const description = repository?.path ?? 'Folder'
+    const label =
+      kind === 'repository' ? this.props.repository.name : this.props.folder.name
+    const description = kind === 'repository' ? this.props.repository.path : 'Folder'
 
     return (
       <div id="repository-list-drag-element">

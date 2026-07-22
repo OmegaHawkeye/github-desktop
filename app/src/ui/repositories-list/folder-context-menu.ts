@@ -5,6 +5,12 @@ import { PopupType } from '../../models/popup'
 import { Dispatcher } from '../dispatcher'
 import { getFoldersInTreeOrder, getFolderPathLabel } from './group-repositories'
 
+/** Callbacks required to build the "Move to folder" submenu. */
+export interface IFolderMenuActions {
+  readonly onUpdateFolder: (folderID: number | null) => void
+  readonly onCreateFolder: () => void
+}
+
 /** The default folder color swatches offered in the folder menu. */
 export const FolderColors: ReadonlyArray<{
   readonly name: string
@@ -19,8 +25,12 @@ export const FolderColors: ReadonlyArray<{
   { name: 'Pink', value: '#bf3989' },
 ]
 
-/** Converts a `#rrggbb` (or `#rgb`) color to an `rgba()` string with `alpha`. */
-export function hexToRgba(hexColor: string, alpha: number): string {
+/**
+ * Expands a `#rgb` shorthand to `#rrggbb`. Returns the input unchanged if it
+ * is already 6 hex digits (after stripping the `#`), or null if the input is
+ * not a recognised hex color.
+ */
+function normalizeHexColor(hexColor: string): string | null {
   const hex = hexColor.replace('#', '')
   const normalized =
     hex.length === 3
@@ -29,11 +39,15 @@ export function hexToRgba(hexColor: string, alpha: number): string {
           .map(c => c + c)
           .join('')
       : hex
+  return normalized.length === 6 ? normalized : null
+}
 
-  if (normalized.length !== 6) {
+/** Converts a `#rrggbb` (or `#rgb`) color to an `rgba()` string with `alpha`. */
+export function hexToRgba(hexColor: string, alpha: number): string {
+  const normalized = normalizeHexColor(hexColor)
+  if (normalized === null) {
     return hexColor
   }
-
   const r = parseInt(normalized.slice(0, 2), 16)
   const g = parseInt(normalized.slice(2, 4), 16)
   const b = parseInt(normalized.slice(4, 6), 16)
@@ -45,19 +59,10 @@ export function hexToRgba(hexColor: string, alpha: number): string {
  * the given hex background color, based on its relative luminance.
  */
 export function getReadableTextColor(hexColor: string): string {
-  const hex = hexColor.replace('#', '')
-  const normalized =
-    hex.length === 3
-      ? hex
-          .split('')
-          .map(c => c + c)
-          .join('')
-      : hex
-
-  if (normalized.length !== 6) {
+  const normalized = normalizeHexColor(hexColor)
+  if (normalized === null) {
     return '#ffffff'
   }
-
   const r = parseInt(normalized.slice(0, 2), 16) / 255
   const g = parseInt(normalized.slice(2, 4), 16) / 255
   const b = parseInt(normalized.slice(4, 6), 16) / 255
@@ -108,29 +113,25 @@ export function getNewFolderMenuItem(
 export function getMoveRepositoryToFolderMenuItem(
   repository: Repository,
   folders: ReadonlyArray<Folder>,
-  dispatcher: Dispatcher
+  actions: IFolderMenuActions
 ): IMenuItem {
   const submenu: IMenuItem[] = [
     {
       label: __DARWIN__ ? 'No Folder' : 'No folder',
-      action: () => dispatcher.updateRepositoryFolder(repository, null),
+      action: () => actions.onUpdateFolder(null),
       type: 'checkbox',
       checked: repository.folderID === null,
     },
     ...getFoldersInTreeOrder(folders).map(folder => ({
       label: getFolderPathLabel(folder, folders),
-      action: () => dispatcher.updateRepositoryFolder(repository, folder.id),
+      action: () => actions.onUpdateFolder(folder.id),
       type: 'checkbox' as const,
       checked: repository.folderID === folder.id,
     })),
     { type: 'separator' },
     {
       label: __DARWIN__ ? 'New Folder…' : 'New folder…',
-      action: () =>
-        dispatcher.showPopup({
-          type: PopupType.CreateRepositoryFolder,
-          repository,
-        }),
+      action: () => actions.onCreateFolder(),
     },
   ]
 

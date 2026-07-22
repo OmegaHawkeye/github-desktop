@@ -110,7 +110,7 @@ describe('RepositoriesStore', () => {
       assert.equal(repositories[0].id, repository.id)
     })
 
-    it('removes nested folders and all descendant assignments', async () => {
+    it('lifts nested folders and their repos to the parent level', async () => {
       const parent = await repositoriesStore.createFolder('Parent')
       const child = await repositoriesStore.createFolder('Child', parent.id)
       await repositoriesStore.addRepository('/parent/repo', undefined, {
@@ -122,13 +122,17 @@ describe('RepositoriesStore', () => {
 
       await repositoriesStore.deleteFolder(parent)
 
-      assert.deepEqual(await repositoriesStore.getAllFolders(), [])
-      assert.deepEqual(
-        (await repositoriesStore.getAll()).map(
-          repository => repository.folderID
-        ),
-        [null, null]
-      )
+      // Child folder is lifted to root (parentFolderID → null); Parent is gone.
+      const remainingFolders = await repositoriesStore.getAllFolders()
+      assert.equal(remainingFolders.length, 1)
+      assert.equal(remainingFolders[0].id, child.id)
+      assert.equal(remainingFolders[0].parentFolderID, null)
+
+      // /parent/repo is unassigned; /child/repo stays in the lifted Child folder.
+      const repos = await repositoriesStore.getAll()
+      const byPath = new Map(repos.map(r => [r.path, r]))
+      assert.equal(byPath.get('/parent/repo')?.folderID, null)
+      assert.equal(byPath.get('/child/repo')?.folderID, child.id)
     })
 
     it('rejects moves that create duplicate sibling names', async () => {

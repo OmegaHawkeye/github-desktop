@@ -11,6 +11,7 @@ import { showContextualMenu } from '../../lib/menu-item'
 import {
   Repositoryish,
   getFoldersInTreeOrder,
+  folderDepth,
 } from '../repositories-list/group-repositories'
 import {
   getMoveRepositoryToFolderMenuItem,
@@ -18,11 +19,16 @@ import {
   getReadableTextColor,
   hexToRgba,
 } from '../repositories-list/folder-context-menu'
+import {
+  isFolderSelfOrDescendant,
+  isFolderHiddenByCollapsedAncestor,
+} from '../repositories-list/folder-utils'
 import { FolderMenu } from '../repositories-list/folder-menu'
 import {
   FolderDropPosition,
   getFolderDropPosition,
 } from '../repositories-list/repository-list-drag-and-drop'
+import { PopupType } from '../../models/popup'
 
 interface IFolderOverviewProps {
   readonly dispatcher: Dispatcher
@@ -66,20 +72,6 @@ export class FolderOverview extends React.Component<
   public constructor(props: IFolderOverviewProps) {
     super(props)
     this.state = { dragFolderID: null, dropTarget: null, folderMenu: null }
-  }
-
-  private isSelfOrDescendant(candidateID: number, ancestorID: number): boolean {
-    const byID = new Map(this.props.folders.map(f => [f.id, f]))
-    let id: number | null = candidateID
-    const seen = new Set<number>()
-    while (id !== null && !seen.has(id)) {
-      if (id === ancestorID) {
-        return true
-      }
-      seen.add(id)
-      id = byID.get(id)?.parentFolderID ?? null
-    }
-    return false
   }
 
   private onFolderDragStart = (
@@ -139,7 +131,8 @@ export class FolderOverview extends React.Component<
     }
 
     // Prevent dropping a folder into itself or one of its own descendants.
-    if (this.isSelfOrDescendant(folder.id, dragFolderID)) {
+    const byID = new Map(this.props.folders.map(f => [f.id, f]))
+    if (isFolderSelfOrDescendant(folder.id, dragFolderID, byID)) {
       return
     }
 
@@ -149,19 +142,6 @@ export class FolderOverview extends React.Component<
         .moveFolderRelativeTo(dragged, folder, position)
         .catch(() => undefined)
     }
-  }
-
-  private folderDepth(folder: Folder): number {
-    const byID = new Map(this.props.folders.map(f => [f.id, f]))
-    let depth = 0
-    let parentID = folder.parentFolderID
-    const seen = new Set<number>([folder.id])
-    while (parentID !== null && !seen.has(parentID)) {
-      seen.add(parentID)
-      depth++
-      parentID = byID.get(parentID)?.parentFolderID ?? null
-    }
-    return depth
   }
 
   private getDisplayTitle(repository: Repositoryish): string {
@@ -218,11 +198,15 @@ export class FolderOverview extends React.Component<
     event.preventDefault()
     event.stopPropagation()
     showContextualMenu([
-      getMoveRepositoryToFolderMenuItem(
-        repository,
-        this.props.folders,
-        this.props.dispatcher
-      ),
+      getMoveRepositoryToFolderMenuItem(repository, this.props.folders, {
+        onUpdateFolder: folderID =>
+          this.props.dispatcher.updateRepositoryFolder(repository, folderID),
+        onCreateFolder: () =>
+          this.props.dispatcher.showPopup({
+            type: PopupType.CreateRepositoryFolder,
+            repository,
+          }),
+      }),
     ])
   }
 
@@ -295,7 +279,8 @@ export class FolderOverview extends React.Component<
   }
 
   private renderFolderSection = (folder: Folder) => {
-    const depth = this.folderDepth(folder)
+    const byID = new Map(this.props.folders.map(f => [f.id, f]))
+    const depth = folderDepth(folder, byID)
     const repos = this.props.repositories.filter(
       r => r instanceof Repository && r.folderID === folder.id
     )
@@ -362,20 +347,6 @@ export class FolderOverview extends React.Component<
     this.props.dispatcher.toggleCollapsedRepositoryFolder(folder.id)
   }
 
-  private isHiddenByCollapsedAncestor(folder: Folder): boolean {
-    const byID = new Map(this.props.folders.map(f => [f.id, f]))
-    let pid = folder.parentFolderID
-    const seen = new Set<number>()
-    while (pid !== null && !seen.has(pid)) {
-      if (this.props.collapsedFolderIDs.includes(pid)) {
-        return true
-      }
-      seen.add(pid)
-      pid = byID.get(pid)?.parentFolderID ?? null
-    }
-    return false
-  }
-
   private renderNoFolderSection() {
     const repos = this.props.repositories.filter(
       r => !(r instanceof Repository) || r.folderID === null
@@ -400,8 +371,10 @@ export class FolderOverview extends React.Component<
   }
 
   public render() {
+    const byID = new Map(this.props.folders.map(f => [f.id, f]))
+    const collapsedIDSet = new Set(this.props.collapsedFolderIDs)
     const orderedFolders = getFoldersInTreeOrder(this.props.folders).filter(
-      f => !this.isHiddenByCollapsedAncestor(f)
+      f => !isFolderHiddenByCollapsedAncestor(f, byID, collapsedIDSet)
     )
 
     return (

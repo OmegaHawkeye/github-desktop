@@ -75,7 +75,7 @@ const recentRepositoriesThreshold = 7
 const getHostForRepository = (repo: RepositoryWithGitHubRepository) =>
   new URL(getHTMLURL(repo.gitHubRepository.endpoint)).host
 
-function folderDepth(
+export function folderDepth(
   folder: Folder,
   foldersByID: ReadonlyMap<number, Folder>
 ): number {
@@ -259,40 +259,34 @@ export function groupRepositories(
     }
   }
 
-  const dotcomKeys = Array.from(groups.keys())
-    .filter(k => k.startsWith('2:dotcom'))
-    .sort(compare)
-  for (const key of dotcomKeys) {
-    const rg = groups.get(key)
-    if (rg !== undefined) {
-      output.push({
-        identifier: rg.group,
-        items: toSortedListItems(
-          rg.group,
-          rg.repos,
-          localRepositoryStateLookup,
-          groups
-        ),
-      })
-    }
+  const dotcomEntries = Array.from(groups.entries())
+    .filter(([, rg]) => rg.group.kind === 'dotcom')
+    .sort(([a], [b]) => compare(a, b))
+  for (const [, rg] of dotcomEntries) {
+    output.push({
+      identifier: rg.group,
+      items: toSortedListItems(
+        rg.group,
+        rg.repos,
+        localRepositoryStateLookup,
+        groups
+      ),
+    })
   }
 
-  const enterpriseKeys = Array.from(groups.keys())
-    .filter(k => k.startsWith('3:enterprise'))
-    .sort(compare)
-  for (const key of enterpriseKeys) {
-    const rg = groups.get(key)
-    if (rg !== undefined) {
-      output.push({
-        identifier: rg.group,
-        items: toSortedListItems(
-          rg.group,
-          rg.repos,
-          localRepositoryStateLookup,
-          groups
-        ),
-      })
-    }
+  const enterpriseEntries = Array.from(groups.entries())
+    .filter(([, rg]) => rg.group.kind === 'enterprise')
+    .sort(([a], [b]) => compare(a, b))
+  for (const [, rg] of enterpriseEntries) {
+    output.push({
+      identifier: rg.group,
+      items: toSortedListItems(
+        rg.group,
+        rg.repos,
+        localRepositoryStateLookup,
+        groups
+      ),
+    })
   }
 
   const otherKey = getGroupKey({ kind: 'other' })

@@ -97,7 +97,9 @@ export interface IAppState {
    * The current list of repositories tracked in the application
    */
   readonly repositories: ReadonlyArray<Repository | CloningRepository>
+  /** The complete list of repository folders defined by the user. */
   readonly folders: ReadonlyArray<Folder>
+  /** IDs of folders whose contents are currently hidden in the repository list. */
   readonly collapsedRepositoryFolderIDs: ReadonlyArray<number>
 
   /**

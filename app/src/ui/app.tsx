@@ -3325,12 +3325,16 @@ export class App extends React.Component<IAppProps, IAppState> {
       case DragType.Repository:
         return (
           <RepositoryListDragElement
+            kind="repository"
             repository={currentDragElement.repository}
           />
         )
       case DragType.RepositoryFolder:
         return (
-          <RepositoryListDragElement folder={currentDragElement.folder} />
+          <RepositoryListDragElement
+            kind="folder"
+            folder={currentDragElement.folder}
+          />
         )
       default:
         return assertNever(

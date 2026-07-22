@@ -46,6 +46,7 @@ import {
   getReadableTextColor,
   hexToRgba,
 } from './folder-context-menu'
+import { isFolderHiddenByCollapsedAncestor } from './folder-utils'
 import { FolderMenu } from './folder-menu'
 
 const BlankSlateImage = encodePathAsUrl(__dirname, 'static/empty-no-repo.svg')
@@ -142,23 +143,6 @@ function findMatchingListItem(
   return null
 }
 
-function isFolderHiddenByCollapsedAncestor(
-  folder: Folder,
-  folders: ReadonlyArray<Folder>,
-  collapsedFolderIDSet: ReadonlySet<number>
-): boolean {
-  let pid: number | null = folder.parentFolderID
-  const byId = new Map(folders.map(f => [f.id, f]))
-  while (pid !== null) {
-    if (collapsedFolderIDSet.has(pid)) {
-      return true
-    }
-    const parent = byId.get(pid)
-    pid = parent?.parentFolderID ?? null
-  }
-  return false
-}
-
 function getVisibleRepositoryGroups(
   groups: ReadonlyArray<
     IFilterListGroup<IRepositoryListItem, RepositoryListGroup>
@@ -167,13 +151,14 @@ function getVisibleRepositoryGroups(
   folders: ReadonlyArray<Folder>
 ) {
   const collapsedFolderIDSet = new Set(collapsedFolderIDs)
+  const foldersByID = new Map(folders.map(f => [f.id, f]))
   return groups
     .filter(
       group =>
         group.identifier.kind !== 'folder' ||
         !isFolderHiddenByCollapsedAncestor(
           group.identifier.folder,
-          folders,
+          foldersByID,
           collapsedFolderIDSet
         )
     )

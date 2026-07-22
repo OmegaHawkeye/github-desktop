@@ -8366,6 +8366,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.apiRepositoriesStore.loadRepositories(account)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _createRepositoryFolder(
     name: string,
     parentFolderID?: number | null
@@ -8373,10 +8374,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.repositoriesStore.createFolder(name, parentFolderID ?? null)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
     return this.repositoriesStore.renameFolder(folder, name)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _setRepositoryFolderColor(
     folder: Folder,
     color: string | null
@@ -8384,12 +8387,14 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.repositoriesStore.setFolderColor(folder, color)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _reorderRepositoryFolders(
     folders: ReadonlyArray<Folder>
   ): Promise<void> {
     return this.repositoriesStore.reorderFolders(folders)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _reparentRepositoryFolder(
     folder: Folder,
     newParentFolderID: number | null
@@ -8397,6 +8402,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.repositoriesStore.reparentFolder(folder, newParentFolderID)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _moveFolderRelativeTo(
     moved: Folder,
     target: Folder,
@@ -8405,6 +8411,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.repositoriesStore.moveFolderRelativeTo(moved, target, position)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
     this.collapsedRepositoryFolderIDs = toggleCollapsedRepositoryFolderID(
       this.collapsedRepositoryFolderIDs,
@@ -8416,6 +8423,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return Promise.resolve()
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _setShowFolderOverview(show: boolean): Promise<void> {
     if (this.showFolderOverview !== show) {
       this.showFolderOverview = show
@@ -8425,10 +8433,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return Promise.resolve()
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _deleteRepositoryFolder(folder: Folder): Promise<void> {
     return this.repositoriesStore.deleteFolder(folder)
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public _updateRepositoryFolder(
     repository: Repository,
     folderID: number | null
