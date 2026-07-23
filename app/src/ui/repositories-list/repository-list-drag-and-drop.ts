@@ -1,6 +1,7 @@
 import { compare } from '../../lib/compare'
 import { Folder } from '../../models/folder'
 import { Repository } from '../../models/repository'
+import { Repositoryish } from './group-repositories'
 
 export type FolderDropPosition = 'before' | 'after' | 'into'
 
@@ -27,6 +28,27 @@ export function canDropRepositoryIntoFolder(
   folder: Folder
 ) {
   return repository.folderID !== folder.id
+}
+
+/**
+ * Given the repository being dragged and the current multi-selection, decide
+ * which repositories should be moved. When the dragged repository is part of
+ * the multi-selection, all selected (real) repositories move together;
+ * otherwise only the dragged repository moves.
+ */
+export function resolveRepositoriesToMove(
+  repositories: ReadonlyArray<Repositoryish>,
+  multiSelectedRepositoryIDs: ReadonlyArray<number>,
+  dragged: Repository
+): ReadonlyArray<Repository> {
+  if (!multiSelectedRepositoryIDs.includes(dragged.id)) {
+    return [dragged]
+  }
+
+  const ids = new Set(multiSelectedRepositoryIDs)
+  return repositories.filter(
+    (r): r is Repository => r instanceof Repository && ids.has(r.id)
+  )
 }
 
 /**

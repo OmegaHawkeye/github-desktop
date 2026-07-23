@@ -101,6 +101,13 @@ interface ISectionFilterListProps<T extends IFilterListItem, GroupIdentifier> {
   readonly onItemClick?: (item: T, source: ClickSource) => void
 
   /**
+   * This function will be called when the user double clicks a row with the
+   * mouse. Consumers can use this together with `onItemClick` to distinguish a
+   * plain click from a double click (e.g. select vs. open).
+   */
+  readonly onItemDoubleClick?: (item: T, source: ClickSource) => void
+
+  /**
    * This function will be called when the selection changes as a result of a
    * user keyboard or mouse action (i.e. not when props change). This function
    * will not be invoked when an already selected row is clicked on.
@@ -408,6 +415,7 @@ export class SectionFilterList<
           }
           onSelectedRowChanged={this.onSelectedRowChanged}
           onRowClick={this.onRowClick}
+          onRowDoubleClick={this.onRowDoubleClick}
           onRowKeyDown={this.onRowKeyDown}
           onRowContextMenu={this.onRowContextMenu}
           canSelectRow={this.canSelectRow}
@@ -543,6 +551,16 @@ export class SectionFilterList<
 
       if (row.kind === 'item') {
         this.props.onItemClick(row.item, source)
+      }
+    }
+  }
+
+  private onRowDoubleClick = (index: RowIndexPath, source: ClickSource) => {
+    if (this.props.onItemDoubleClick) {
+      const row = this.state.rows[index.section][index.row]
+
+      if (row.kind === 'item') {
+        this.props.onItemDoubleClick(row.item, source)
       }
     }
   }

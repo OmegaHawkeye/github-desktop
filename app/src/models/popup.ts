@@ -83,6 +83,7 @@ export enum PopupType {
   CreateRepositoryFolder = 'CreateRepositoryFolder',
   RenameRepositoryFolder = 'RenameRepositoryFolder',
   DeleteRepositoryFolder = 'DeleteRepositoryFolder',
+  MoveRepositoryToFolder = 'MoveRepositoryToFolder',
   ThankYou = 'ThankYou',
   CommitMessage = 'CommitMessage',
   MultiCommitOperation = 'MultiCommitOperation',
@@ -187,11 +188,13 @@ export type PopupDetail =
       repository: Repository
       initialSelectedTab?: RepositorySettingsTab
     }
-  | { type: PopupType.AddRepository; path?: string }
+  | { type: PopupType.AddRepository; path?: string; folderID?: number | null }
   | { type: PopupType.CreateRepository; path?: string }
   | {
       type: PopupType.CloneRepository
       initialURL: string | null
+      /** Folder to place the cloned repository into once it is added. */
+      initialFolderID?: number | null
     }
   | {
       type: PopupType.CreateBranch
@@ -363,6 +366,11 @@ export type PopupDetail =
     }
   | { type: PopupType.RenameRepositoryFolder; folder: Folder }
   | { type: PopupType.DeleteRepositoryFolder; folder: Folder }
+  | {
+      type: PopupType.MoveRepositoryToFolder
+      repository: Repository
+      folder: Folder
+    }
   | {
       type: PopupType.ThankYou
       userContributions: ReadonlyArray<ReleaseNote>

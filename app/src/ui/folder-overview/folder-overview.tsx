@@ -9,26 +9,29 @@ import classNames from 'classnames'
 import { Dispatcher } from '../dispatcher'
 import { TextBox } from '../lib/text-box'
 import { showContextualMenu } from '../../lib/menu-item'
+import { Repositoryish } from '../repositories-list/group-repositories'
 import {
-  Repositoryish,
-  getFoldersInTreeOrder,
-  folderDepth,
-} from '../repositories-list/group-repositories'
-import {
-  getMoveRepositoryToFolderMenuItem,
   getNewFolderMenuItem,
   getReadableTextColor,
 } from '../repositories-list/folder-context-menu'
-import {
-  isFolderSelfOrDescendant,
-  isFolderHiddenByCollapsedAncestor,
-} from '../repositories-list/folder-utils'
+import { isFolderSelfOrDescendant } from '../repositories-list/folder-utils'
 import { FolderMenu } from '../repositories-list/folder-menu'
 import {
   FolderDropPosition,
   getFolderDropPosition,
+  canDropRepositoryIntoFolder,
+  resolveRepositoriesToMove,
 } from '../repositories-list/repository-list-drag-and-drop'
+import { generateRepositoryListContextMenu } from '../repositories-list/repository-list-item-context-menu'
 import { PopupType } from '../../models/popup'
+import { Draggable } from '../lib/draggable'
+import { dragAndDropManager } from '../../lib/drag-and-drop-manager'
+import {
+  DragType,
+  DropTargetSelector,
+  DropTargetType,
+} from '../../models/drag-drop'
+import { enableWorktreeSupport } from '../../lib/feature-flag'
 
 interface IFolderOverviewProps {
   readonly dispatcher: Dispatcher
@@ -43,6 +46,30 @@ interface IFolderOverviewProps {
 
   /** Invoked when the user picks a repository (should also close the overview). */
   readonly onSelectRepository: (repository: Repositoryish) => void
+
+  /** Whether the user should be asked to confirm removing a repository. */
+  readonly askForConfirmationOnRemoveRepository: boolean
+
+  /** Called when the repository should be removed. */
+  readonly onRemoveRepository: (repository: Repositoryish) => void
+
+  /** Called when the repository should be shown in Finder/Explorer/File Manager. */
+  readonly onShowRepository: (repository: Repositoryish) => void
+
+  /** Called when the repository should be opened on GitHub in the browser. */
+  readonly onViewOnGitHub: (repository: Repositoryish) => void
+
+  /** Called when the repository should be opened in the shell. */
+  readonly onOpenInShell: (repository: Repositoryish) => void
+
+  /** Called when the repository should be opened in an external editor. */
+  readonly onOpenInExternalEditor: (repository: Repositoryish) => void
+
+  /** The current external editor selected by the user. */
+  readonly externalEditorLabel?: string
+
+  /** The label for the user's preferred shell. */
+  readonly shellLabel?: string
 }
 
 interface IFolderOverviewState {
@@ -61,6 +88,21 @@ interface IFolderOverviewState {
   } | null
   /** The text entered by the user to filter folders and repositories. */
   readonly filterText: string
+  /**
+   * The id of the folder a repository drag is currently hovering over, used to
+   * highlight it as a drop target. Separate from `dropTarget` (folder reorder).
+   */
+  readonly repoDropFolderID: number | null
+  /**
+   * The ids of repositories the user has marked with Ctrl/Cmd+click so they can
+   * be dragged into a folder together. A plain click replaces this with a
+   * single repository; opening a repository (double click) clears it.
+   */
+  readonly multiSelectedRepositoryIDs: ReadonlyArray<number>
+  /** The id of the folder currently being renamed inline, if any. */
+  readonly renamingFolderID: number | null
+  /** The in-progress folder name while renaming inline. */
+  readonly renameDraft: string
 }
 
 /**
@@ -78,7 +120,51 @@ export class FolderOverview extends React.Component<
       dropTarget: null,
       folderMenu: null,
       filterText: '',
+      repoDropFolderID: null,
+      multiSelectedRepositoryIDs: [],
+      renamingFolderID: null,
+      renameDraft: '',
     }
+  }
+
+  private onFolderNameDoubleClick =
+    (folder: Folder) => (event: React.MouseEvent<HTMLElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      this.setState({ renamingFolderID: folder.id, renameDraft: folder.name })
+    }
+
+  private onRenameDraftChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    this.setState({ renameDraft: event.currentTarget.value })
+  }
+
+  private onRenameKeyDown =
+    (folder: Folder) => (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        this.commitRename(folder)
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        this.cancelRename()
+      }
+    }
+
+  private onRenameBlur = (folder: Folder) => () => {
+    this.commitRename(folder)
+  }
+
+  private commitRename(folder: Folder) {
+    const name = this.state.renameDraft.trim()
+    if (name.length > 0 && name !== folder.name) {
+      this.props.dispatcher.renameRepositoryFolder(folder, name)
+    }
+    this.setState({ renamingFolderID: null, renameDraft: '' })
+  }
+
+  private cancelRename() {
+    this.setState({ renamingFolderID: null, renameDraft: '' })
   }
 
   private onFilterTextChanged = (filterText: string) => {
@@ -249,22 +335,71 @@ export class FolderOverview extends React.Component<
     repository: Repositoryish,
     event: React.MouseEvent<HTMLElement>
   ) => {
-    if (!(repository instanceof Repository)) {
-      return
-    }
     event.preventDefault()
     event.stopPropagation()
-    showContextualMenu([
-      getMoveRepositoryToFolderMenuItem(repository, this.props.folders, {
-        onUpdateFolder: folderID =>
-          this.props.dispatcher.updateRepositoryFolder(repository, folderID),
-        onCreateFolder: () =>
-          this.props.dispatcher.showPopup({
-            type: PopupType.CreateRepositoryFolder,
-            repository,
-          }),
-      }),
-    ])
+
+    const items = generateRepositoryListContextMenu({
+      repository,
+      onRemoveRepository: this.props.onRemoveRepository,
+      onShowRepository: this.props.onShowRepository,
+      onOpenInShell: this.props.onOpenInShell,
+      onOpenInExternalEditor: this.props.onOpenInExternalEditor,
+      onViewOnGitHub: this.props.onViewOnGitHub,
+      askForConfirmationOnRemoveRepository:
+        this.props.askForConfirmationOnRemoveRepository,
+      externalEditorLabel: this.props.externalEditorLabel,
+      shellLabel: this.props.shellLabel,
+      onChangeRepositoryAlias: this.onChangeRepositoryAlias,
+      onRemoveRepositoryAlias: this.onRemoveRepositoryAlias,
+      onCreateRepositoryFolder: this.onCreateRepositoryFolder,
+      onUpdateRepositoryFolder: this.onUpdateRepositoryFolder,
+      folders: this.props.folders,
+      onCreateWorktree: enableWorktreeSupport()
+        ? this.onCreateWorktree
+        : undefined,
+      onShowWorktrees: enableWorktreeSupport()
+        ? this.onShowWorktrees
+        : undefined,
+    })
+
+    showContextualMenu(items)
+  }
+
+  private onChangeRepositoryAlias = (repository: Repository) => {
+    this.props.dispatcher.showPopup({
+      type: PopupType.ChangeRepositoryAlias,
+      repository,
+    })
+  }
+
+  private onRemoveRepositoryAlias = (repository: Repository) => {
+    this.props.dispatcher.changeRepositoryAlias(repository, null)
+  }
+
+  private onCreateRepositoryFolder = (repository: Repository) => {
+    this.props.dispatcher.showPopup({
+      type: PopupType.CreateRepositoryFolder,
+      repository,
+    })
+  }
+
+  private onUpdateRepositoryFolder = (
+    repository: Repository,
+    folderID: number | null
+  ) => {
+    this.props.dispatcher.updateRepositoryFolder(repository, folderID)
+  }
+
+  private onCreateWorktree = (repository: Repository) => {
+    this.props.dispatcher.showPopup({
+      type: PopupType.AddWorktree,
+      repository,
+    })
+  }
+
+  private onShowWorktrees = (repository: Repository) => {
+    this.props.dispatcher.selectRepository(repository)
+    this.props.dispatcher.showWorktreesFoldout()
   }
 
   private onBackgroundContextMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -272,11 +407,7 @@ export class FolderOverview extends React.Component<
     showContextualMenu([getNewFolderMenuItem(this.props.dispatcher)])
   }
 
-  private renderRepository = (
-    repository: Repositoryish,
-    depth: number,
-    folderColor: string | null = null
-  ) => {
+  private renderRepository = (repository: Repositoryish) => {
     const state = this.props.localRepositoryStateLookup.get(repository.id)
     const aheadBehind = state?.aheadBehind ?? null
     const changedFilesCount = state?.changedFilesCount ?? 0
@@ -285,31 +416,28 @@ export class FolderOverview extends React.Component<
       this.props.selectedRepository.id === repository.id &&
       this.props.selectedRepository.constructor === repository.constructor
 
+    const isMultiSelected =
+      repository instanceof Repository &&
+      this.state.multiSelectedRepositoryIDs.includes(repository.id)
+
     const icon =
       repository instanceof CloningRepository
         ? octicons.desktopDownload
         : octicons.repo
 
-    // Repositories inside a colored folder keep the neutral panel background
-    // (matching the folder header and the sidebar) and are tied to their
-    // folder by a left edge in the folder's color, passed to CSS as a custom
-    // property so the built-in hover/selection backgrounds keep working.
-    const hasColor = folderColor !== null
-    const style = {
-      paddingLeft: 24 + depth * 16,
-      ...(hasColor ? { '--folder-accent-color': folderColor } : {}),
-    } as React.CSSProperties
-
-    return (
+    // Indentation and the colored folder "band" are provided structurally by
+    // the enclosing .folder-overview-children wrapper(s), so the row itself
+    // only needs a small text inset and keeps the neutral panel background.
+    const button = (
       <button
         type="button"
         key={`${repository.constructor.name}-${repository.id}`}
         className={classNames('folder-overview-repository', {
           selected: isSelected,
-          'has-color': hasColor,
+          'multi-selected': isMultiSelected,
         })}
-        style={style}
-        onClick={() => this.props.onSelectRepository(repository)}
+        onClick={e => this.onRepositoryClick(repository, e)}
+        onDoubleClick={() => this.props.onSelectRepository(repository)}
         onContextMenu={e => this.onRepositoryContextMenu(repository, e)}
         title={repository.path}
       >
@@ -337,19 +465,167 @@ export class FolderOverview extends React.Component<
         </span>
       </button>
     )
+
+    // Only real repositories can be dragged into a folder; cloning repositories
+    // aren't foldered.
+    if (!(repository instanceof Repository)) {
+      return button
+    }
+
+    return (
+      <Draggable
+        key={`${repository.constructor.name}-${repository.id}`}
+        isEnabled={true}
+        onDragStart={() => this.onRepositoryDragStart(repository)}
+        onRenderDragElement={() => this.onRenderRepositoryDragElement(repository)}
+        onRemoveDragElement={this.onRemoveRepositoryDragElement}
+        dropTargetSelectors={[DropTargetSelector.RepositoryFolder]}
+      >
+        {button}
+      </Draggable>
+    )
   }
 
-  private renderFolderSection = (folder: Folder) => {
-    const byID = new Map(this.props.folders.map(f => [f.id, f]))
-    const depth = folderDepth(folder, byID)
-    const repos = this.getFolderRepositories(folder)
+  private onRepositoryClick = (
+    repository: Repositoryish,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    // A plain click only marks the repository (so it can be dragged into a
+    // folder); Ctrl/Cmd extends the selection. Opening happens on double click.
+    if (!(repository instanceof Repository)) {
+      this.setState({ multiSelectedRepositoryIDs: [] })
+      return
+    }
 
-    // While filtering, hide folders that neither match by name nor contain any
-    // matching repositories.
+    const additive = event.ctrlKey || event.metaKey
+    this.setState(prev => {
+      if (!additive) {
+        return { multiSelectedRepositoryIDs: [repository.id] }
+      }
+      const ids = prev.multiSelectedRepositoryIDs
+      return {
+        multiSelectedRepositoryIDs: ids.includes(repository.id)
+          ? ids.filter(id => id !== repository.id)
+          : [...ids, repository.id],
+      }
+    })
+  }
+
+  private onRepositoryDragStart(repository: Repository) {
+    this.blurActiveElement()
+    dragAndDropManager.setDragData({ type: DragType.Repository, repository })
+  }
+
+  private onRenderRepositoryDragElement(repository: Repository) {
+    this.props.dispatcher.setDragElement({
+      type: DragType.Repository,
+      repository,
+    })
+  }
+
+  private onRemoveRepositoryDragElement = () => {
+    dragAndDropManager.setDragData(null)
+    dragAndDropManager.emitLeaveDropTarget()
+    this.setState({ repoDropFolderID: null })
+    this.props.dispatcher.clearDragElement()
+  }
+
+  private blurActiveElement() {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+  }
+
+  private onRepoDropTargetMouseEnter = (folder: Folder) => () => {
+    this.updateRepositoryFolderDropTarget(folder)
+  }
+
+  private onRepoDropTargetMouseMove = (folder: Folder) => () => {
+    this.updateRepositoryFolderDropTarget(folder)
+  }
+
+  private onRepoDropTargetMouseLeave = (folder: Folder) => () => {
+    if (this.state.repoDropFolderID === folder.id) {
+      this.setState({ repoDropFolderID: null })
+    }
+  }
+
+  private onRepoDropTargetMouseUp = (folder: Folder) => () => {
+    this.dropRepositoriesIntoFolder(folder)
+  }
+
+  private updateRepositoryFolderDropTarget(folder: Folder) {
+    const dragData = dragAndDropManager.dragData
+    if (
+      dragData === null ||
+      dragData.type !== DragType.Repository ||
+      !canDropRepositoryIntoFolder(dragData.repository, folder)
+    ) {
+      return
+    }
+
+    dragAndDropManager.emitEnterDropTarget({
+      type: DropTargetType.RepositoryFolder,
+      folder,
+    })
+    if (this.state.repoDropFolderID !== folder.id) {
+      this.setState({ repoDropFolderID: folder.id })
+    }
+  }
+
+  private dropRepositoriesIntoFolder(folder: Folder) {
+    const dragData = dragAndDropManager.dragData
+    if (dragData === null || dragData.type !== DragType.Repository) {
+      return
+    }
+
+    // If the dragged repository is part of the multi-selection, move every
+    // selected repository into the folder; otherwise just the dragged one.
+    const toMove = resolveRepositoriesToMove(
+      this.props.repositories,
+      this.state.multiSelectedRepositoryIDs,
+      dragData.repository
+    )
+
+    for (const repository of toMove) {
+      if (canDropRepositoryIntoFolder(repository, folder)) {
+        this.props.dispatcher.updateRepositoryFolder(repository, folder.id)
+      }
+    }
+
+    this.setState({ repoDropFolderID: null, multiSelectedRepositoryIDs: [] })
+  }
+
+  /**
+   * Recursively renders a folder and everything it contains. A folder's element
+   * literally wraps its subfolders, so the hierarchy is structural and the
+   * colored "band" is a single left border on the children wrapper (which
+   * therefore spans the whole folder, subfolders included). Nested colored
+   * folders add their own band inside the parent's — butted against it with no
+   * gap.
+   */
+  private renderFolder = (
+    folder: Folder,
+    byParent: ReadonlyMap<number | null, ReadonlyArray<Folder>>
+  ): JSX.Element | null => {
+    const repos = this.getFolderRepositories(folder)
+    const childFolders = byParent.get(folder.id) ?? []
+    const collapsed =
+      !this.isFiltering && this.props.collapsedFolderIDs.includes(folder.id)
+
+    const renderedChildren = collapsed
+      ? []
+      : childFolders
+          .map(child => this.renderFolder(child, byParent))
+          .filter((node): node is JSX.Element => node !== null)
+
+    // While filtering, hide a folder that neither matches by name, contains a
+    // matching repository, nor has any visible descendant folder.
     if (
       this.isFiltering &&
       !this.folderMatchesFilter(folder) &&
-      repos.length === 0
+      repos.length === 0 &&
+      renderedChildren.length === 0
     ) {
       return null
     }
@@ -359,32 +635,46 @@ export class FolderOverview extends React.Component<
         ? this.state.dropTarget
         : null
 
-    const headerStyle: React.CSSProperties = { paddingLeft: 8 + depth * 16 }
+    const headerStyle: React.CSSProperties = {}
     if (folder.color !== null) {
       headerStyle.backgroundColor = folder.color
       headerStyle.color = getReadableTextColor(folder.color)
     }
 
-    const collapsed =
-      !this.isFiltering && this.props.collapsedFolderIDs.includes(folder.id)
+    const childrenStyle =
+      folder.color !== null
+        ? ({ '--folder-band-color': folder.color } as React.CSSProperties)
+        : undefined
+
+    const isRenaming = this.state.renamingFolderID === folder.id
 
     return (
       <div className="folder-overview-section" key={`folder-${folder.id}`}>
         <div
-          className={classNames('folder-overview-folder-header', {
-            'has-color': folder.color !== null,
-            'folder-drop-before': dropTarget?.position === 'before',
-            'folder-drop-after': dropTarget?.position === 'after',
-            'folder-drop-into': dropTarget?.position === 'into',
-          })}
+          className={classNames(
+            'folder-overview-folder-header',
+            'repository-folder-drop-target',
+            {
+              'has-color': folder.color !== null,
+              'repository-drop-target':
+                this.state.repoDropFolderID === folder.id,
+              'folder-drop-before': dropTarget?.position === 'before',
+              'folder-drop-after': dropTarget?.position === 'after',
+              'folder-drop-into': dropTarget?.position === 'into',
+            }
+          )}
           style={headerStyle}
-          draggable={true}
+          draggable={!isRenaming}
           onDragStart={e => this.onFolderDragStart(folder, e)}
           onDragOver={e => this.onFolderDragOver(folder, e)}
           onDragLeave={() => this.onFolderDragLeave(folder)}
           onDragEnd={this.onFolderDragEnd}
           onDrop={e => this.onFolderDrop(folder, e)}
           onContextMenu={e => this.onFolderContextMenu(folder, e)}
+          onMouseEnter={this.onRepoDropTargetMouseEnter(folder)}
+          onMouseMove={this.onRepoDropTargetMouseMove(folder)}
+          onMouseLeave={this.onRepoDropTargetMouseLeave(folder)}
+          onMouseUp={this.onRepoDropTargetMouseUp(folder)}
         >
           <button
             type="button"
@@ -398,13 +688,45 @@ export class FolderOverview extends React.Component<
             />
           </button>
           <Octicon symbol={octicons.fileDirectory} />
-          <span className="folder-name">{folder.name}</span>
+          {isRenaming ? (
+            <input
+              className="folder-name-input"
+              type="text"
+              value={this.state.renameDraft}
+              aria-label={`Rename ${folder.name}`}
+              autoFocus={true}
+              onChange={this.onRenameDraftChange}
+              onKeyDown={this.onRenameKeyDown(folder)}
+              onBlur={this.onRenameBlur(folder)}
+              onFocus={e => e.currentTarget.select()}
+              onClick={e => e.stopPropagation()}
+              onDoubleClick={e => e.stopPropagation()}
+              onMouseDown={e => e.stopPropagation()}
+            />
+          ) : (
+            <span
+              className="folder-name"
+              onDoubleClick={this.onFolderNameDoubleClick(folder)}
+              title="Double-click to rename"
+            >
+              {folder.name}
+            </span>
+          )}
           <span className="folder-count">
             {repos.length === 1 ? '1 repo' : `${repos.length} repos`}
           </span>
         </div>
-        {!collapsed &&
-          repos.map(r => this.renderRepository(r, depth, folder.color))}
+        {!collapsed && (repos.length > 0 || renderedChildren.length > 0) && (
+          <div
+            className={classNames('folder-overview-children', {
+              'has-color': folder.color !== null,
+            })}
+            style={childrenStyle}
+          >
+            {repos.map(r => this.renderRepository(r))}
+            {renderedChildren}
+          </div>
+        )}
       </div>
     )
   }
@@ -435,34 +757,39 @@ export class FolderOverview extends React.Component<
             {repos.length === 1 ? '1 repo' : `${repos.length} repos`}
           </span>
         </div>
-        {repos.map(r => this.renderRepository(r, 0))}
+        <div className="folder-overview-children">
+          {repos.map(r => this.renderRepository(r))}
+        </div>
       </div>
     )
   }
 
   public render() {
-    const byID = new Map(this.props.folders.map(f => [f.id, f]))
-    const collapsedIDSet = new Set(this.props.collapsedFolderIDs)
     const { isFiltering } = this
-    const orderedFolders = getFoldersInTreeOrder(this.props.folders).filter(
-      f =>
-        isFiltering || !isFolderHiddenByCollapsedAncestor(f, byID, collapsedIDSet)
-    )
 
-    // Determine whether any content will be rendered so we can show an
-    // appropriate empty/no-results message.
-    const hasVisibleFolder = orderedFolders.some(
-      f =>
-        !isFiltering ||
-        this.folderMatchesFilter(f) ||
-        this.getFolderRepositories(f).length > 0
-    )
+    // Group folders by parent (sorted by sortOrder) so we can render the tree
+    // recursively — each folder element wraps its own subfolders.
+    const byParent = new Map<number | null, Folder[]>()
+    for (const folder of this.props.folders) {
+      const parent = folder.parentFolderID ?? null
+      const list = byParent.get(parent) ?? []
+      list.push(folder)
+      byParent.set(parent, list)
+    }
+    for (const list of byParent.values()) {
+      list.sort((a, b) => a.sortOrder - b.sortOrder)
+    }
+
+    const renderedFolders = (byParent.get(null) ?? [])
+      .map(folder => this.renderFolder(folder, byParent))
+      .filter((node): node is JSX.Element => node !== null)
+
     const hasVisibleNoFolderRepo = this.props.repositories.some(
       r =>
         (!(r instanceof Repository) || r.folderID === null) &&
         this.repositoryMatchesFilter(r)
     )
-    const hasResults = hasVisibleFolder || hasVisibleNoFolderRepo
+    const hasResults = renderedFolders.length > 0 || hasVisibleNoFolderRepo
 
     return (
       <div className="folder-overview">
@@ -487,7 +814,7 @@ export class FolderOverview extends React.Component<
           className="folder-overview-content"
           onContextMenu={this.onBackgroundContextMenu}
         >
-          {orderedFolders.map(this.renderFolderSection)}
+          {renderedFolders}
           {this.renderNoFolderSection()}
           {!hasResults && (
             <div className="folder-overview-empty">

@@ -42,10 +42,26 @@
   }
 
   .folder-overview-section {
-    margin-bottom: var(--spacing-half);
+    // No gap between sections so a parent folder's color band reads as one
+    // continuous strip wrapping its subfolders.
+    margin-bottom: 0;
+  }
+
+  // A folder's element wraps everything inside it. The children wrapper carries
+  // the folder's color as a thick left band that therefore spans the folder and
+  // all of its subfolders. Nested colored folders add their own band inside the
+  // parent's padding — butted directly against it with no gap. The left padding
+  // equals the band width so bands from different levels sit flush together.
+  .folder-overview-children {
+    padding-left: 6px;
+
+    &.has-color {
+      box-shadow: inset 6px 0 0 var(--folder-band-color);
+    }
   }
 
   .folder-overview-folder-header {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--spacing-half);
@@ -64,6 +80,12 @@
     }
 
     &.folder-drop-into {
+      box-shadow: inset 0 0 0 2px var(--accent-color);
+    }
+
+    // Highlighted while one or more repositories are being dragged onto it, to
+    // show it is a valid drop target for moving repositories into the folder.
+    &.repository-drop-target {
       box-shadow: inset 0 0 0 2px var(--accent-color);
     }
 
@@ -93,6 +115,21 @@
 
     .folder-name {
       @include ellipsis;
+    }
+
+    // Inline rename field, shown when double-clicking a folder name. Sized to
+    // sit in place of the folder-name label without shifting the header layout.
+    .folder-name-input {
+      flex: 1 1 auto;
+      min-width: 0;
+      font: inherit;
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-color);
+      background: var(--background-color);
+      border: var(--base-border);
+      border-radius: var(--border-radius);
+      padding: 0 var(--spacing-half);
+      margin: 0;
     }
 
     .folder-count {
@@ -130,7 +167,10 @@
     align-items: center;
     gap: var(--spacing-half);
     width: 100%;
-    padding: var(--spacing-half) var(--spacing-double);
+    // Indentation comes from the enclosing .folder-overview-children wrapper(s);
+    // the row only needs a small text inset after the color band.
+    padding: var(--spacing-half) var(--spacing-double) var(--spacing-half)
+      var(--spacing);
     box-sizing: border-box;
 
     &:hover {
@@ -147,12 +187,17 @@
       }
     }
 
-    // Repositories inside a colored folder keep the neutral panel background
-    // and are tied to their folder by a left edge in the folder's color (set
-    // inline as a custom property). The hover and selection backgrounds come
-    // from the rules above and show through unchanged.
-    &.has-color {
-      box-shadow: inset 3px 0 0 var(--folder-accent-color);
+    // Repositories inside a colored folder keep the neutral panel background;
+    // their folder membership is shown by the color band on the enclosing
+    // .folder-overview-children wrapper. Hover/selection backgrounds show through.
+
+    // Marked with Ctrl/Cmd+click to be dragged into a folder together. Distinct
+    // from the single "selected" repository: an accent left edge plus a subtle
+    // background. Placed after `.selected`/`.has-color` so the accent edge wins
+    // while a repository is marked.
+    &.multi-selected {
+      background: var(--list-item-selected-background-color);
+      box-shadow: inset 3px 0 0 var(--accent-color);
     }
 
     .repo-icon {

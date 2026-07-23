@@ -42,6 +42,12 @@ interface ICloneRepositoryProps {
   /** The initial URL or `owner/name` shortcut to use. */
   readonly initialURL: string | null
 
+  /**
+   * An optional folder to preselect as the destination folder. Used when the
+   * dialog is opened from a folder's context menu.
+   */
+  readonly initialFolderID?: number | null
+
   /** The currently select tab. */
   readonly selectedTab: CloneRepositoryTab
 
@@ -188,7 +194,7 @@ export class CloneRepository extends React.Component<
 
     const initialBaseTabState: IBaseTabState = {
       error: null,
-      folderID: null,
+      folderID: this.props.initialFolderID ?? null,
       lastParsedIdentifier: null,
       path: defaultDirectory,
       url: this.props.initialURL || '',

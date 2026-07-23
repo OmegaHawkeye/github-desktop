@@ -8122,6 +8122,23 @@ export class AppStore extends TypedBaseStore<IAppState> {
         // and isUsingLFS if the repo already exists in the app.
         if (existing !== undefined) {
           addedRepositories.push(existing)
+
+          // If the caller targeted a specific folder (e.g. "Add existing
+          // repository" from a folder's context menu) and the repository is
+          // already in the app, prompt to move it — or tell the user it's
+          // already in that folder — rather than silently doing nothing.
+          const targetFolderID = options?.folderID
+          if (targetFolderID !== undefined && targetFolderID !== null) {
+            const folder = this.folders.find(f => f.id === targetFolderID)
+            if (folder !== undefined) {
+              this._showPopup({
+                type: PopupType.MoveRepositoryToFolder,
+                repository: existing,
+                folder,
+              })
+            }
+          }
+
           continue
         }
 

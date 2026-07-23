@@ -227,6 +227,38 @@ export class FolderMenu extends React.Component<
         <button
           type="button"
           className="folder-menu-item"
+          onClick={() =>
+            this.run(() =>
+              dispatcher.showPopup({
+                type: PopupType.CloneRepository,
+                initialURL: null,
+                initialFolderID: folder.id,
+              })
+            )
+          }
+        >
+          Clone repository…
+        </button>
+        <button
+          type="button"
+          className="folder-menu-item"
+          onClick={() =>
+            this.run(() =>
+              dispatcher.showPopup({
+                type: PopupType.AddRepository,
+                folderID: folder.id,
+              })
+            )
+          }
+        >
+          Add existing repository…
+        </button>
+
+        <div className="folder-menu-separator" />
+
+        <button
+          type="button"
+          className="folder-menu-item"
           disabled={previous === null}
           onClick={() =>
             previous !== null &&

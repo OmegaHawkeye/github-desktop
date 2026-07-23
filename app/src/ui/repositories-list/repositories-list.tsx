@@ -1,18 +1,25 @@
 import * as React from 'react'
 
-import { commitGrammar, RepositoryListItem } from './repository-list-item'
+import { RepositoryListItem } from './repository-list-item'
 import {
-  groupRepositories,
   IRepositoryListItem,
   Repositoryish,
   RepositoryListGroup,
   getGroupKey,
 } from './group-repositories'
-import { IFilterListGroup } from '../lib/filter-list'
 import { IMatches } from '../../lib/fuzzy-find'
+import { TextBox } from '../lib/text-box'
+import {
+  buildRepositoriesTree,
+  IRepositoryTreeFolder,
+  IRepositoryTreeSection,
+  IRepositoryTreeItem,
+} from './build-repositories-tree'
+import { RepositoriesTree, RepositoryTreeNode } from './repositories-tree'
 import { ILocalRepositoryState, Repository } from '../../models/repository'
 import { Dispatcher } from '../dispatcher'
 import { Button } from '../lib/button'
+import { Row } from '../lib/row'
 import { Octicon } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
 import { showContextualMenu } from '../../lib/menu-item'
@@ -25,9 +32,7 @@ import classNames from 'classnames'
 import { KeyboardShortcut } from '../keyboard-shortcut/keyboard-shortcut'
 import { generateRepositoryListContextMenu } from '../repositories-list/repository-list-item-context-menu'
 import { enableWorktreeSupport } from '../../lib/feature-flag'
-import { SectionFilterList } from '../lib/section-filter-list'
 import { assertNever } from '../../lib/fatal-error'
-import { IAheadBehind } from '../../models/branch'
 import { Folder } from '../../models/folder'
 import { Draggable } from '../lib/draggable'
 import { dragAndDropManager } from '../../lib/drag-and-drop-manager'
@@ -40,12 +45,12 @@ import {
   canDropRepositoryIntoFolder,
   FolderDropPosition,
   getFolderDropPosition,
+  resolveRepositoriesToMove,
 } from './repository-list-drag-and-drop'
 import {
   getNewFolderMenuItem,
   getReadableTextColor,
 } from './folder-context-menu'
-import { isFolderHiddenByCollapsedAncestor } from './folder-utils'
 import { FolderMenu } from './folder-menu'
 
 const BlankSlateImage = encodePathAsUrl(__dirname, 'static/empty-no-repo.svg')
@@ -109,6 +114,12 @@ interface IRepositoriesListState {
     readonly y: number
   } | null
   readonly activeFolderDropTarget: IActiveFolderDropTarget | null
+  /**
+   * The ids of repositories the user has marked with Ctrl/Cmd+click so they can
+   * be dragged into a folder together. A plain click replaces this with a
+   * single repository; opening a repository (double click / Enter) clears it.
+   */
+  readonly multiSelectedRepositoryIDs: ReadonlyArray<number>
 }
 
 interface IActiveFolderDropTarget {
@@ -117,104 +128,11 @@ interface IActiveFolderDropTarget {
   readonly position?: FolderDropPosition
 }
 
-const RowHeight = 29
-
-/**
- * Iterate over all groups until a list item is found that matches
- * the id of the provided repository.
- */
-function findMatchingListItem(
-  groups: ReadonlyArray<
-    IFilterListGroup<IRepositoryListItem, RepositoryListGroup>
-  >,
-  selectedRepository: Repositoryish | null
-) {
-  if (selectedRepository !== null) {
-    for (const group of groups) {
-      for (const item of group.items) {
-        if (item.repository.id === selectedRepository.id) {
-          return item
-        }
-      }
-    }
-  }
-
-  return null
-}
-
-function getVisibleRepositoryGroups(
-  groups: ReadonlyArray<
-    IFilterListGroup<IRepositoryListItem, RepositoryListGroup>
-  >,
-  collapsedFolderIDs: ReadonlyArray<number>,
-  folders: ReadonlyArray<Folder>
-) {
-  const collapsedFolderIDSet = new Set(collapsedFolderIDs)
-  const foldersByID = new Map(folders.map(f => [f.id, f]))
-  return groups
-    .filter(
-      group =>
-        group.identifier.kind !== 'folder' ||
-        !isFolderHiddenByCollapsedAncestor(
-          group.identifier.folder,
-          foldersByID,
-          collapsedFolderIDSet
-        )
-    )
-    .map(group => {
-      if (group.identifier.kind !== 'folder') {
-        return group
-      }
-      return collapsedFolderIDSet.has(group.identifier.folder.id)
-        ? { ...group, items: [] }
-        : group
-    })
-}
-
 /** The list of user-added repositories. */
 export class RepositoriesList extends React.Component<
   IRepositoriesListProps,
   IRepositoriesListState
 > {
-  /**
-   * A memoized function for grouping repositories for display
-   * in the FilterList. The group will not be recomputed as long
-   * as the provided list of repositories is equal to the last
-   * time the method was called (reference equality).
-   */
-  private getRepositoryGroups = memoizeOne(
-    (
-      repositories: ReadonlyArray<Repositoryish> | null,
-      folders: ReadonlyArray<Folder>,
-      localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
-      recentRepositories: ReadonlyArray<number>,
-      collapsedFolderIDs: ReadonlyArray<number>,
-      collapseFolders: boolean
-    ) =>
-      repositories === null
-        ? []
-        : getVisibleRepositoryGroups(
-            groupRepositories(
-              repositories,
-              folders,
-              localRepositoryStateLookup,
-              recentRepositories
-            ),
-            collapseFolders ? collapsedFolderIDs : [],
-            folders
-          )
-  )
-
-  /**
-   * A memoized function for finding the selected list item based
-   * on an IAPIRepository instance. The selected item will not be
-   * recomputed as long as the provided list of repositories and
-   * the selected data object is equal to the last time the method
-   * was called (reference equality).
-   *
-   * See findMatchingListItem for more details.
-   */
-  private getSelectedListItem = memoizeOne(findMatchingListItem)
   private getGroupContextMenuHandler = memoizeOne(
     (group: RepositoryListGroup) => (event: React.MouseEvent<HTMLDivElement>) =>
       this.onGroupContextMenu(group, event)
@@ -241,12 +159,13 @@ export class RepositoriesList extends React.Component<
       selectedItem: null,
       activeFolderDropTarget: null,
       folderMenu: null,
+      multiSelectedRepositoryIDs: [],
     }
   }
 
   private renderItem = (item: IRepositoryListItem, matches: IMatches) => {
     const repository = item.repository
-    let content = (
+    const listItem = (
       <RepositoryListItem
         key={repository.id}
         repository={repository}
@@ -254,37 +173,38 @@ export class RepositoriesList extends React.Component<
         matches={matches}
         aheadBehind={item.aheadBehind}
         changedFilesCount={item.changedFilesCount}
+        isMultiSelected={this.state.multiSelectedRepositoryIDs.includes(
+          repository.id
+        )}
       />
     )
 
-    if (!(repository instanceof Repository)) {
-      return content
+    // A plain click marks the repo (multi-select); double click opens it. These
+    // used to be provided by SectionFilterList's row handling.
+    const rowMouseProps = {
+      onClick: (e: React.MouseEvent<HTMLDivElement>) =>
+        this.onRepoRowClick(item, e),
+      onDoubleClick: () => this.openRepository(item),
+      onContextMenu: (e: React.MouseEvent<HTMLDivElement>) =>
+        this.onItemContextMenu(item, e),
     }
 
-    if (item.group.kind === 'folder') {
-      const folderColor = item.group.folder.color
-      // Repositories inside a colored folder sit on the normal (neutral) panel
-      // background — matching the repository/branch dropdowns — and are tied to
-      // their folder by a left edge in the folder's color. The color is passed
-      // to CSS as a custom property (see
-      // .repository-folder-section-drop-target.has-color) so the built-in hover
-      // and selection backgrounds keep working unchanged.
-      const sectionStyle =
-        folderColor !== null
-          ? ({
-              '--repository-folder-accent-color': folderColor,
-            } as React.CSSProperties)
-          : undefined
+    if (!(repository instanceof Repository)) {
+      return (
+        <div className="repository-row-content" {...rowMouseProps}>
+          {listItem}
+        </div>
+      )
+    }
 
-      content = (
+    // Repositories inside a colored folder keep the neutral panel background;
+    // their folder membership is shown by the color band on the enclosing tree
+    // wrapper. The folder-section drop target lets a drag land on the row.
+    const content =
+      item.group.kind === 'folder' ? (
         <div
           role="presentation"
-          className={classNames(
-            'repository-folder-drop-target',
-            'repository-folder-section-drop-target',
-            { 'has-color': folderColor !== null }
-          )}
-          style={sectionStyle}
+          className="repository-folder-drop-target repository-folder-section-drop-target"
           onMouseEnter={this.onFolderSectionDropTargetMouseEnter(
             item.group.folder
           )}
@@ -295,11 +215,15 @@ export class RepositoriesList extends React.Component<
             item.group.folder
           )}
           onMouseUp={this.onFolderSectionDropTargetMouseUp(item.group.folder)}
+          {...rowMouseProps}
         >
-          {content}
+          {listItem}
+        </div>
+      ) : (
+        <div className="repository-row-content" {...rowMouseProps}>
+          {listItem}
         </div>
       )
-    }
 
     return (
       <Draggable
@@ -314,77 +238,11 @@ export class RepositoriesList extends React.Component<
     )
   }
 
-  private getAheadBehindTooltip = (aheadBehind: IAheadBehind | null) => {
-    if (aheadBehind === null) {
-      return null
-    }
-
-    const { ahead, behind } = aheadBehind
-
-    if (behind === 0 && ahead === 0) {
-      return null
-    }
-
-    return (
-      'The currently checked out branch is' +
-      (behind ? ` ${commitGrammar(behind)} behind ` : '') +
-      (behind && ahead ? 'and' : '') +
-      (ahead ? ` ${commitGrammar(ahead)} ahead of ` : '') +
-      'its tracked branch.'
-    )
-  }
-
-  private renderRowFocusTooltip = (
-    item: IRepositoryListItem
-  ): JSX.Element | string | null => {
-    const { repository, aheadBehind, changedFilesCount } = item
-    const gitHubRepo =
-      repository instanceof Repository ? repository.gitHubRepository : null
-    const alias = repository instanceof Repository ? repository.alias : null
-    const realName = gitHubRepo ? gitHubRepo.fullName : repository.name
-    const aheadBehindTooltip = this.getAheadBehindTooltip(aheadBehind)
-    const hasChanges = changedFilesCount > 0
-    const uncommittedChangesTooltip = hasChanges
-      ? `There are uncommitted changes in this repository.`
-      : null
-
-    const ahead = aheadBehind?.ahead ?? 0
-    const behind = aheadBehind?.behind ?? 0
-
-    return (
-      <div className="repository-list-item-tooltip list-item-tooltip">
-        <div>
-          <div className="label">Full Name: </div>
-          {realName}
-          {alias && <> ({alias})</>}
-        </div>
-        <div>
-          <div className="label">Path: </div>
-          {repository.path}
-        </div>
-        {aheadBehindTooltip && (
-          <div>
-            <div className="label">
-              <div className="ahead-behind">
-                {ahead > 0 && <Octicon symbol={octicons.arrowUp} />}
-                {behind > 0 && <Octicon symbol={octicons.arrowDown} />}
-              </div>
-            </div>
-            {aheadBehindTooltip}
-          </div>
-        )}
-        {uncommittedChangesTooltip && (
-          <div>
-            <div className="label">
-              <span className="change-indicator-wrapper">
-                <Octicon symbol={octicons.dotFill} />
-              </span>
-            </div>
-            {uncommittedChangesTooltip}
-          </div>
-        )}
-      </div>
-    )
+  private onRepoRowClick = (
+    item: IRepositoryListItem,
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    this.toggleMultiSelection(item.repository, event.ctrlKey || event.metaKey)
   }
 
   private getGroupLabel(group: RepositoryListGroup) {
@@ -461,9 +319,10 @@ export class RepositoriesList extends React.Component<
       this.props.filterText.length === 0 &&
       this.props.collapsedFolderIDs.includes(group.folder.id)
 
-    const depth = group.depth
     const color = group.folder.color
-    const headerStyle: React.CSSProperties = { paddingLeft: depth * 12 }
+    // Indentation and the nested color band come from the enclosing tree
+    // wrappers; the header only carries its own color as the name background.
+    const headerStyle: React.CSSProperties = {}
     if (color !== null) {
       headerStyle.backgroundColor = color
       headerStyle.color = getReadableTextColor(color)
@@ -708,15 +567,25 @@ export class RepositoriesList extends React.Component<
 
   private dropRepositoryIntoFolder(folder: Folder) {
     const dragData = dragAndDropManager.dragData
-    if (
-      dragData === null ||
-      dragData.type !== DragType.Repository ||
-      !canDropRepositoryIntoFolder(dragData.repository, folder)
-    ) {
+    if (dragData === null || dragData.type !== DragType.Repository) {
       return
     }
 
-    this.props.dispatcher.updateRepositoryFolder(dragData.repository, folder.id)
+    // If the dragged repository is part of the multi-selection, move every
+    // selected repository into the folder; otherwise just the dragged one.
+    const toMove = resolveRepositoriesToMove(
+      this.props.repositories,
+      this.state.multiSelectedRepositoryIDs,
+      dragData.repository
+    )
+
+    for (const repository of toMove) {
+      if (canDropRepositoryIntoFolder(repository, folder)) {
+        this.props.dispatcher.updateRepositoryFolder(repository, folder.id)
+      }
+    }
+
+    this.setState({ multiSelectedRepositoryIDs: [] })
   }
 
   private clearActiveFolderDropTarget(folder: Folder) {
@@ -728,14 +597,39 @@ export class RepositoriesList extends React.Component<
     dragAndDropManager.emitLeaveDropTarget()
   }
 
-  private onItemClick = (item: IRepositoryListItem) => {
+  private openRepository(item: IRepositoryListItem) {
     const hasIndicator =
       item.changedFilesCount > 0 ||
       (item.aheadBehind !== null
         ? item.aheadBehind.ahead > 0 || item.aheadBehind.behind > 0
         : false)
     this.props.dispatcher.recordRepoClicked(hasIndicator)
+    this.setState({ multiSelectedRepositoryIDs: [] })
     this.props.onSelectionChanged(item.repository)
+  }
+
+  /**
+   * Toggle a repository in/out of the multi-selection. When not additive the
+   * selection is replaced with just this repository. Only real repositories
+   * (not cloning ones, which can't be foldered) participate.
+   */
+  private toggleMultiSelection(repository: Repositoryish, additive: boolean) {
+    if (!(repository instanceof Repository)) {
+      this.setState({ multiSelectedRepositoryIDs: [] })
+      return
+    }
+
+    this.setState(prev => {
+      if (!additive) {
+        return { multiSelectedRepositoryIDs: [repository.id] }
+      }
+      const ids = prev.multiSelectedRepositoryIDs
+      return {
+        multiSelectedRepositoryIDs: ids.includes(repository.id)
+          ? ids.filter(id => id !== repository.id)
+          : [...ids, repository.id],
+      }
+    })
   }
 
   private onItemContextMenu = (
@@ -743,6 +637,7 @@ export class RepositoriesList extends React.Component<
     event: React.MouseEvent<HTMLDivElement>
   ) => {
     event.preventDefault()
+    event.stopPropagation()
 
     const items = generateRepositoryListContextMenu({
       onRemoveRepository: this.props.onRemoveRepository,
@@ -771,77 +666,137 @@ export class RepositoriesList extends React.Component<
     showContextualMenu(items)
   }
 
-  private getItemAriaLabel = (item: IRepositoryListItem) => item.repository.name
-  private getGroupAriaLabelGetter =
-    (
-      groups: ReadonlyArray<
-        IFilterListGroup<IRepositoryListItem, RepositoryListGroup>
-      >
-    ) =>
-    (group: number) =>
-      this.getGroupLabel(groups[group].identifier)
-
   public render() {
-    const groups = this.getRepositoryGroups(
+    const tree = buildRepositoriesTree(
       this.props.repositories,
       this.props.folders,
       this.props.localRepositoryStateLookup,
       this.props.recentRepositories,
-      this.props.collapsedFolderIDs,
-      this.props.filterText.length === 0
+      this.props.filterText
     )
 
-    // So there's two types of selection at play here. There's the repository
-    // selection for the whole app and then there's the keyboard selection in
-    // the list itself. If the user has selected a repository using keyboard
-    // navigation we want to honor that selection. If the user hasn't selected a
-    // repository yet we'll select the repository currently selected in the app.
-    const selectedItem =
-      this.state.selectedItem ??
-      this.getSelectedListItem(groups, this.props.selectedRepository)
+    const nodes = this.buildTreeNodes(tree)
 
     return (
       <div
         className="repository-list"
         onContextMenu={this.onListBackgroundContextMenu}
       >
-        <SectionFilterList<IRepositoryListItem, RepositoryListGroup>
-          rowHeight={RowHeight}
-          selectedItem={selectedItem}
-          filterText={this.props.filterText}
-          onFilterTextChanged={this.props.onFilterTextChanged}
-          renderItem={this.renderItem}
-          renderRowFocusTooltip={this.renderRowFocusTooltip}
-          renderGroupHeader={this.renderGroupHeader}
-          onItemClick={this.onItemClick}
-          renderPostFilter={this.renderPostFilter}
-          renderNoItems={this.renderNoItems}
-          groups={groups}
-          invalidationProps={{
-            repositories: this.props.repositories,
-            filterText: this.props.filterText,
-            collapsedFolderIDs: this.props.collapsedFolderIDs,
-          }}
-          onItemContextMenu={this.onItemContextMenu}
-          getGroupAriaLabel={this.getGroupAriaLabelGetter(groups)}
-          getItemAriaLabel={this.getItemAriaLabel}
-          onSelectionChanged={this.onSelectionChanged}
-          shouldKeepGroupWhenEmpty={
-            this.props.filterText.length === 0
-              ? this.shouldKeepEmptyGroupVisible
-              : undefined
-          }
-        />
+        <Row className="filter-field-row">
+          <TextBox
+            type="search"
+            className="repository-filter-field"
+            placeholder="Filter"
+            ariaLabel="Filter repositories"
+            value={this.props.filterText}
+            onValueChanged={this.props.onFilterTextChanged}
+          />
+          {this.renderPostFilter()}
+        </Row>
+        {nodes.length === 0 ? (
+          this.renderNoItems()
+        ) : (
+          <div className="repository-list-scroller">
+            <RepositoriesTree
+              nodes={nodes}
+              onActivateRepository={this.onActivateRepository}
+              onToggleFolder={this.onToggleFolderKeyboard}
+              onToggleMultiSelect={this.onToggleMultiSelectKeyboard}
+            />
+          </div>
+        )}
         {this.renderFolderMenu()}
       </div>
     )
   }
 
-  private shouldKeepEmptyGroupVisible = (group: RepositoryListGroup) =>
-    group.kind === 'folder'
+  private buildTreeNodes(tree: {
+    recent: IRepositoryTreeSection | null
+    folders: ReadonlyArray<IRepositoryTreeFolder>
+    otherSections: ReadonlyArray<IRepositoryTreeSection>
+  }): ReadonlyArray<RepositoryTreeNode> {
+    const nodes = new Array<RepositoryTreeNode>()
 
-  private onSelectionChanged = (selectedItem: IRepositoryListItem | null) => {
-    this.setState({ selectedItem })
+    if (tree.recent !== null) {
+      nodes.push(this.buildSectionNode(tree.recent))
+    }
+    for (const folder of tree.folders) {
+      nodes.push(this.buildFolderNode(folder))
+    }
+    for (const section of tree.otherSections) {
+      nodes.push(this.buildSectionNode(section))
+    }
+
+    return nodes
+  }
+
+  private buildSectionNode(
+    section: IRepositoryTreeSection
+  ): RepositoryTreeNode {
+    return {
+      kind: 'section',
+      key: `section-${getGroupKey(section.group)}`,
+      header: this.renderGroupHeader(section.group),
+      children: section.items.map(ti => this.buildRepoNode(ti)),
+    }
+  }
+
+  private buildFolderNode(node: IRepositoryTreeFolder): RepositoryTreeNode {
+    const { folder } = node
+    const group: RepositoryListGroup = {
+      kind: 'folder',
+      folder,
+      depth: node.depth,
+    }
+    const collapsed =
+      this.props.filterText.length === 0 &&
+      this.props.collapsedFolderIDs.includes(folder.id)
+
+    return {
+      kind: 'folder',
+      key: `folder-${folder.id}`,
+      folder,
+      color: folder.color,
+      collapsed,
+      header: this.renderGroupHeader(group),
+      children: [
+        ...node.items.map(ti => this.buildRepoNode(ti)),
+        ...node.children.map(child => this.buildFolderNode(child)),
+      ],
+    }
+  }
+
+  private buildRepoNode(ti: IRepositoryTreeItem): RepositoryTreeNode {
+    const { item } = ti
+    const repository = item.repository
+    const selected =
+      this.props.selectedRepository !== null &&
+      this.props.selectedRepository.id === repository.id &&
+      this.props.selectedRepository.constructor === repository.constructor
+
+    return {
+      kind: 'repo',
+      key: `repo-${repository.constructor.name}-${repository.id}`,
+      repository,
+      selected,
+      multiSelected: this.state.multiSelectedRepositoryIDs.includes(
+        repository.id
+      ),
+      row: this.renderItem(item, ti.matches),
+    }
+  }
+
+  private onActivateRepository = (repository: Repositoryish) => {
+    this.setState({ multiSelectedRepositoryIDs: [] })
+    this.props.onSelectionChanged(repository)
+  }
+
+  private onToggleFolderKeyboard = (folder: Folder) => {
+    this.props.dispatcher.toggleCollapsedRepositoryFolder(folder.id)
+  }
+
+  private onToggleMultiSelectKeyboard = (repository: Repositoryish) => {
+    this.toggleMultiSelection(repository, true)
   }
 
   private onGroupContextMenu = (
@@ -853,6 +808,7 @@ export class RepositoriesList extends React.Component<
     }
 
     event.preventDefault()
+    event.stopPropagation()
 
     this.setState({
       folderMenu: {

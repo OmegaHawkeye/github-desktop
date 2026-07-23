@@ -59,6 +59,11 @@ export class Repository {
   ) {
     this.name = (gitHubRepository && gitHubRepository.name) || getBaseName(path)
 
+    // NB: folderID is intentionally NOT part of the equality hash. Folder
+    // membership is organizational, not part of the repository's identity.
+    // Including it made moving a repository into a folder look like a brand new
+    // repository — which lost its cached state, re-selected it, and closed the
+    // folder overview (see updateRepositorySelectionAfterRepositoriesChanged).
     this.hash = createEqualityHash(
       path,
       this.id,
@@ -66,7 +71,6 @@ export class Repository {
       this.missing,
       this.alias,
       this.workflowPreferences.forkContributionTarget,
-      this.folderID,
       this.isTutorialRepository
     )
   }

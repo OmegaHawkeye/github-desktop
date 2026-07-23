@@ -25,6 +25,12 @@ interface IAddExistingRepositoryProps {
    * Defaults to the empty string if not defined.
    */
   readonly path?: string
+
+  /**
+   * An optional folder to place the newly added repository into. Used when the
+   * dialog is opened from a folder's context menu.
+   */
+  readonly folderID?: number | null
 }
 
 interface IAddExistingRepositoryState {
@@ -287,7 +293,14 @@ export class AddExistingRepository extends React.Component<
     const { dispatcher } = this.props
 
     const resolvedPath = this.resolvedPath(path)
-    const repositories = await dispatcher.addRepositories([resolvedPath])
+    const { folderID } = this.props
+    // Pass the target folder so a newly added repository lands in it directly.
+    // Repositories that are already in the app are handled by the app store,
+    // which prompts to move them (or notes they're already in the folder).
+    const repositories = await dispatcher.addRepositories(
+      [resolvedPath],
+      folderID != null ? { folderID } : undefined
+    )
 
     if (repositories.length > 0) {
       dispatcher.closeFoldout(FoldoutType.Repository)

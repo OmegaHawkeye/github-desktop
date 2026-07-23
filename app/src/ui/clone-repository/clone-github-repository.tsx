@@ -135,7 +135,7 @@ export class CloneGithubRepository extends React.PureComponent<ICloneGithubRepos
           />
           <Button onClick={this.props.onChooseDirectory}>Choose…</Button>
         </Row>
-        <Row>
+        <Row className="repository-folder-field">
           <Select
             label={__DARWIN__ ? 'Repository Folder' : 'Repository folder'}
             value={this.props.selectedFolderID?.toString() ?? ''}

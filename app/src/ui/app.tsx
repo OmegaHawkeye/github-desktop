@@ -149,6 +149,7 @@ import { MoveToApplicationsFolder } from './move-to-applications-folder'
 import { ChangeRepositoryAlias } from './change-repository-alias/change-repository-alias-dialog'
 import { ChangeRepositoryFolder } from './change-repository-folder/change-repository-folder-dialog'
 import { DeleteRepositoryFolder } from './change-repository-folder/delete-repository-folder-dialog'
+import { MoveRepositoryToFolder } from './change-repository-folder/move-repository-to-folder-dialog'
 import { ThankYou } from './thank-you'
 import {
   getUserContributions,
@@ -1863,6 +1864,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             path={popup.path}
+            folderID={popup.folderID}
           />
         )
       case PopupType.CreateRepository:
@@ -1882,6 +1884,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             accounts={this.state.accounts}
             folders={this.state.folders}
             initialURL={popup.initialURL}
+            initialFolderID={popup.initialFolderID}
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             selectedTab={this.state.selectedCloneRepositoryTab}
@@ -2395,6 +2398,16 @@ export class App extends React.Component<IAppProps, IAppState> {
         return (
           <DeleteRepositoryFolder
             dispatcher={this.props.dispatcher}
+            folder={popup.folder}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.MoveRepositoryToFolder: {
+        return (
+          <MoveRepositoryToFolder
+            dispatcher={this.props.dispatcher}
+            repository={popup.repository}
             folder={popup.folder}
             onDismissed={onPopupDismissedFn}
           />
@@ -4020,6 +4033,18 @@ export class App extends React.Component<IAppProps, IAppState> {
           localRepositoryStateLookup={state.localRepositoryStateLookup}
           selectedRepository={state.selectedState?.repository ?? null}
           onSelectRepository={this.onFolderOverviewRepositorySelected}
+          askForConfirmationOnRemoveRepository={
+            state.askForConfirmationOnRepositoryRemoval
+          }
+          onRemoveRepository={this.removeRepository}
+          onShowRepository={this.showRepository}
+          onViewOnGitHub={this.viewOnGitHub}
+          onOpenInShell={this.openInShell}
+          onOpenInExternalEditor={this.openInExternalEditor}
+          externalEditorLabel={this.externalEditorLabel}
+          shellLabel={
+            state.useCustomShell ? undefined : state.selectedShell
+          }
         />
       )
     }
