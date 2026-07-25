@@ -132,6 +132,42 @@ describe('commit-graph', () => {
       assert.ok(incomingIntoNode.every(e => e.to === p.node))
     })
 
+    it('never draws a pass-through lane as a diagonal (no stray lines)', () => {
+      // Two tips (a merge `m` and a branch tip `x`) both descend from a shared
+      // ancestor `p`, so several lanes end up reserved for `p` at once. On the
+      // rows between the fork and `p` those lanes must render as straight
+      // vertical segments; a regression once drew them diagonally toward the
+      // leftmost duplicate, producing lines attached to no commit.
+      const commits = [
+        makeCommit('m', ['p', 'q']),
+        makeCommit('q', ['p']),
+        makeCommit('x', ['p']),
+        makeCommit('p', []),
+      ]
+
+      const graph = graphOf(commits)
+
+      // Invariant: a pass-through segment stays in its own lane.
+      for (const row of graph.rows.values()) {
+        for (const edge of row.edges) {
+          if (edge.kind === 'through') {
+            assert.equal(
+              edge.from,
+              edge.to,
+              'through edges must be vertical (from === to)'
+            )
+          }
+        }
+      }
+
+      // `x` sits above `p` with two lanes already reserved for `p`; both must
+      // pass straight through its row.
+      const x = graph.rows.get('x')!
+      const throughs = x.edges.filter(e => e.kind === 'through')
+      assert.ok(throughs.length >= 2)
+      assert.ok(throughs.every(e => e.from === e.to))
+    })
+
     it('gives independent roots their own colors while reusing lanes', () => {
       const commits = [makeCommit('a', []), makeCommit('b', [])]
 

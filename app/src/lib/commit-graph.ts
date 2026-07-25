@@ -158,20 +158,36 @@ export function buildCommitGraph(
       }
     }
 
-    // Assign lanes to the parents.
+    // Assign lanes to the parents, remembering the column each parent's line
+    // leaves this row in. Several parents/branches can be reserved for the same
+    // SHA (branches that share an ancestor); we record the concrete column here
+    // so the outgoing edges below connect to the right lane rather than guessing
+    // via a SHA lookup, which would collapse onto a duplicate reservation.
+    const parentColumns = new Map<string, number>()
     parents.forEach((parent, index) => {
+      if (parentColumns.has(parent)) {
+        return
+      }
       if (index === 0) {
         // The first parent continues the current branch in the node's lane and
         // keeps its color.
         lanes[node] = parent
         laneColors[node] = color
-      } else if (lanes.indexOf(parent) === -1) {
-        // A merged-in branch that isn't already heading somewhere: open a new
-        // colored lane for it. If a lane is already waiting for this parent we
-        // let the merge line connect to that existing lane instead.
-        const lane = firstFreeLane()
-        lanes[lane] = parent
-        laneColors[lane] = takeColor()
+        parentColumns.set(parent, node)
+      } else {
+        const existing = lanes.indexOf(parent)
+        if (existing !== -1) {
+          // A lane is already waiting for this parent: connect the merge line to
+          // that existing lane instead of opening a duplicate.
+          parentColumns.set(parent, existing)
+        } else {
+          // A merged-in branch that isn't already heading somewhere: open a new
+          // colored lane for it.
+          const lane = firstFreeLane()
+          lanes[lane] = parent
+          laneColors[lane] = takeColor()
+          parentColumns.set(parent, lane)
+        }
       }
     })
 
@@ -180,15 +196,23 @@ export function buildCommitGraph(
 
     const edges: Array<ICommitGraphEdge> = []
 
-    // 1. Lanes that pass straight through the row without touching the node.
+    // 1. Lanes that pass straight through the row without touching the node. A
+    //    pass-through lane keeps its column for its whole lifetime, so it is
+    //    always drawn as a straight vertical segment. (Resolving the column via
+    //    a SHA lookup would collapse onto a duplicate reservation of the same
+    //    commit and paint stray diagonal lines that connect to no node.)
     for (let i = 0; i < incoming.length; i++) {
       const laneSha = incoming[i]
       if (laneSha === null || laneSha === sha) {
         continue
       }
-      const to = outgoing.indexOf(laneSha)
-      if (to !== -1) {
-        edges.push({ from: i, to, color: incomingColors[i], kind: 'through' })
+      if (outgoing[i] === laneSha) {
+        edges.push({
+          from: i,
+          to: i,
+          color: incomingColors[i],
+          kind: 'through',
+        })
       }
     }
 
@@ -200,17 +224,10 @@ export function buildCommitGraph(
       }
     }
 
-    // 3. Outgoing lines: from the node down to each parent's lane.
-    const seenParents = new Set<string>()
-    for (const parent of parents) {
-      if (seenParents.has(parent)) {
-        continue
-      }
-      seenParents.add(parent)
-      const to = outgoing.indexOf(parent)
-      if (to !== -1) {
-        edges.push({ from: node, to, color: laneColors[to], kind: 'bottom' })
-      }
+    // 3. Outgoing lines: from the node down to each parent's lane, using the
+    //    exact column each parent was assigned above.
+    for (const to of parentColumns.values()) {
+      edges.push({ from: node, to, color: laneColors[to], kind: 'bottom' })
     }
 
     rows.set(sha, { node, color, edges, isMerge })
