@@ -40,6 +40,17 @@
     min-height: 0;
   }
 
+  // The "current branch / all branches" scope switch above the History graph.
+  .history-scope-toggle {
+    flex: initial;
+    padding: var(--spacing-half);
+    border-bottom: var(--base-border);
+
+    .tab-bar.switch {
+      margin: 0;
+    }
+  }
+
   .merge-status {
     background: var(--background-color);
     border-width: 0 var(--spacing-half);

@@ -948,6 +948,12 @@ export interface ICompareState {
   /** The SHAs of commits to render in the compare list */
   readonly commitSHAs: ReadonlyArray<string>
 
+  /**
+   * Whether the History view should show commits from every branch (local and
+   * remote-tracking, i.e. `git log --all`) rather than just the current branch.
+   */
+  readonly showAllBranches: boolean
+
   /** The SHAs of commits to highlight in the compare list */
   readonly shasToHighlight: ReadonlyArray<string>
 

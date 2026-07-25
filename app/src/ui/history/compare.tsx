@@ -16,7 +16,7 @@ import { ThrottledScheduler } from '../lib/throttled-scheduler'
 import { BranchList } from '../branches'
 import { TextBox } from '../lib/text-box'
 import { IBranchListItem } from '../branches/group-branches'
-import { TabBar } from '../tab-bar'
+import { TabBar, TabBarType } from '../tab-bar'
 import { CompareBranchListItem } from './compare-branch-list-item'
 import { FancyTextBox } from '../lib/fancy-text-box'
 import * as octicons from '../octicons/octicons.generated'
@@ -196,9 +196,50 @@ export class CompareSidebar extends React.Component<
     return (
       <div className="compare-commit-list">
         {formState.kind === HistoryTabMode.History
-          ? this.renderCommitList()
+          ? this.renderHistory()
           : this.renderTabBar(formState)}
       </div>
+    )
+  }
+
+  private renderHistory() {
+    return (
+      <>
+        {this.renderHistoryScopeToggle()}
+        {this.renderCommitList()}
+      </>
+    )
+  }
+
+  /**
+   * A segmented toggle letting the user switch the History graph between the
+   * current branch and every branch (local + remote-tracking, `git log --all`).
+   */
+  private renderHistoryScopeToggle() {
+    if (!enableCommitGraph()) {
+      return null
+    }
+
+    const { showAllBranches } = this.props.compareState
+
+    return (
+      <div className="history-scope-toggle">
+        <TabBar
+          type={TabBarType.Switch}
+          selectedIndex={showAllBranches ? 1 : 0}
+          onTabClicked={this.onHistoryScopeChanged}
+        >
+          <span>Current branch</span>
+          <span>All branches</span>
+        </TabBar>
+      </div>
+    )
+  }
+
+  private onHistoryScopeChanged = (index: number) => {
+    this.props.dispatcher.setHistoryShowAllBranches(
+      this.props.repository,
+      index === 1
     )
   }
 

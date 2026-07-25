@@ -245,6 +245,17 @@ export class Dispatcher {
     return this.appStore._loadNextCommitBatch(repository)
   }
 
+  /**
+   * Set whether the History view shows commits from all branches (local and
+   * remote-tracking) or just the current branch.
+   */
+  public setHistoryShowAllBranches(
+    repository: Repository,
+    showAllBranches: boolean
+  ): Promise<void> {
+    return this.appStore._setHistoryShowAllBranches(repository, showAllBranches)
+  }
+
   /** Load the changed files for the current history selection. */
   public loadChangedFilesForCurrentSelection(
     repository: Repository
