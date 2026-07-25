@@ -6,6 +6,7 @@ import { DragType } from '../../src/models/drag-drop'
 import { Folder } from '../../src/models/folder'
 import { Repository } from '../../src/models/repository'
 import { RepositoriesList } from '../../src/ui/repositories-list/repositories-list'
+import { buildRepositoriesTree } from '../../src/ui/repositories-list/build-repositories-tree'
 import {
   canDropRepositoryIntoFolder,
   getFolderDropPosition,
@@ -149,7 +150,7 @@ describe('repository list drag and drop', () => {
     ])
   })
 
-  it('collapses folder groups to header-only when requested', () => {
+  it('marks a collapsed folder as collapsed while keeping its repositories nested', () => {
     const folder = new Folder(1, 'Work', 0)
     const repository = new Repository(
       '/work/repo',
@@ -163,20 +164,29 @@ describe('repository list drag and drop', () => {
     )
     const { list } = createList([folder], [repository], [folder.id])
 
-    const groups = (list as any).getRepositoryGroups(
+    const tree = buildRepositoriesTree(
       [repository],
       [folder],
       new Map(),
       [],
-      [folder.id],
+      ''
+    )
+    const nodes = (list as any).buildTreeNodes(tree)
+
+    const folderNode = nodes.find(
+      (node: any) => node.kind === 'folder' && node.folder.id === folder.id
+    )
+    assert.ok(folderNode)
+    assert.equal(folderNode.collapsed, true)
+    // Collapse is a rendering concern: the repository stays in the tree data
+    // so it can reappear instantly when the folder is expanded again.
+    assert.equal(
+      folderNode.children.some((child: any) => child.kind === 'repo'),
       true
     )
-
-    assert.equal(groups[0].identifier.kind, 'folder')
-    assert.equal(groups[0].items.length, 0)
   })
 
-  it('hides descendant folder groups when a parent is collapsed', () => {
+  it('nests descendant folders under a collapsed parent', () => {
     const parent = new Folder(1, 'Parent', 0)
     const child = new Folder(2, 'Child', 0, parent.id)
     const repository = new Repository(
@@ -191,18 +201,25 @@ describe('repository list drag and drop', () => {
     )
     const { list } = createList([parent, child], [repository], [parent.id])
 
-    const groups = (list as any).getRepositoryGroups(
+    const tree = buildRepositoriesTree(
       [repository],
       [parent, child],
       new Map(),
       [],
-      [parent.id],
-      true
+      ''
     )
+    const nodes = (list as any).buildTreeNodes(tree)
 
-    assert.equal(groups.length, 1)
-    assert.equal(groups[0].identifier.folder.id, parent.id)
-    assert.equal(groups[0].items.length, 0)
+    const parentNode = nodes.find(
+      (node: any) => node.kind === 'folder' && node.folder.id === parent.id
+    )
+    assert.ok(parentNode)
+    assert.equal(parentNode.collapsed, true)
+
+    const childNode = parentNode.children.find(
+      (node: any) => node.kind === 'folder' && node.folder.id === child.id
+    )
+    assert.ok(childNode)
   })
 })
 

@@ -24,9 +24,9 @@ describe('collapsed repository folders storage', () => {
   it('removes ids for folders that no longer exist', () => {
     const folders = [new Folder(1, 'Work', 0), new Folder(3, 'Team', 1)]
 
-    assert.deepEqual(cleanupCollapsedRepositoryFolderIDs([1, 2, 3], folders), [
-      1,
-      3,
-    ])
+    assert.deepEqual(
+      cleanupCollapsedRepositoryFolderIDs([1, 2, 3], folders),
+      [1, 3]
+    )
   })
 })

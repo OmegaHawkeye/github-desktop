@@ -26,7 +26,9 @@ export class MoveRepositoryToFolder extends React.Component<IMoveRepositoryToFol
 
   private get title(): string {
     if (this.isAlreadyInFolder) {
-      return __DARWIN__ ? 'Repository Already Added' : 'Repository already added'
+      return __DARWIN__
+        ? 'Repository Already Added'
+        : 'Repository already added'
     }
     return __DARWIN__ ? 'Move Repository?' : 'Move repository?'
   }

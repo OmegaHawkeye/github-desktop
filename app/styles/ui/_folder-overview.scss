@@ -169,8 +169,7 @@
     width: 100%;
     // Indentation comes from the enclosing .folder-overview-children wrapper(s);
     // the row only needs a small text inset after the color band.
-    padding: var(--spacing-half) var(--spacing-double) var(--spacing-half)
-      var(--spacing);
+    padding: var(--spacing-half) var(--spacing-double) var(--spacing-half) var(--spacing);
     box-sizing: border-box;
 
     &:hover {

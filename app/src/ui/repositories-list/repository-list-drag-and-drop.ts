@@ -85,8 +85,7 @@ export function getReorderedFolders(
   const [removed] = reordered.splice(draggedIndex, 1)
   const targetIndexAfterRemoval =
     targetIndex - (draggedIndex < targetIndex ? 1 : 0)
-  const insertIndex =
-    targetIndexAfterRemoval + (position === 'after' ? 1 : 0)
+  const insertIndex = targetIndexAfterRemoval + (position === 'after' ? 1 : 0)
 
   reordered.splice(insertIndex, 0, removed)
 

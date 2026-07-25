@@ -106,7 +106,6 @@ interface IRepositoriesListProps {
 
 interface IRepositoriesListState {
   readonly newRepositoryMenuExpanded: boolean
-  readonly selectedItem: IRepositoryListItem | null
   /** The open custom folder context menu, if any. */
   readonly folderMenu: {
     readonly folderID: number
@@ -156,7 +155,6 @@ export class RepositoriesList extends React.Component<
 
     this.state = {
       newRepositoryMenuExpanded: false,
-      selectedItem: null,
       activeFolderDropTarget: null,
       folderMenu: null,
       multiSelectedRepositoryIDs: [],

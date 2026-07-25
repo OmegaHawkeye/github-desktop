@@ -17,8 +17,11 @@ export class RepositoryListDragElement extends React.PureComponent<IRepositoryLi
         ? iconForRepository(this.props.repository)
         : octicons.fileDirectoryFill
     const label =
-      kind === 'repository' ? this.props.repository.name : this.props.folder.name
-    const description = kind === 'repository' ? this.props.repository.path : 'Folder'
+      kind === 'repository'
+        ? this.props.repository.name
+        : this.props.folder.name
+    const description =
+      kind === 'repository' ? this.props.repository.path : 'Folder'
 
     return (
       <div id="repository-list-drag-element">

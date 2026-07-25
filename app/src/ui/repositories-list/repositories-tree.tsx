@@ -141,7 +141,8 @@ export class RepositoriesTree extends React.Component<
     }
 
     const focusedKey = this.state.focusedKey
-    const node = focusedKey !== null ? this.findNode(this.props.nodes, focusedKey) : null
+    const node =
+      focusedKey !== null ? this.findNode(this.props.nodes, focusedKey) : null
 
     switch (event.key) {
       case 'ArrowDown':
@@ -236,6 +237,7 @@ export class RepositoriesTree extends React.Component<
           key={node.key}
           role="treeitem"
           aria-expanded={!node.collapsed}
+          aria-selected={false}
           tabIndex={this.tabIndexFor(node.key)}
           ref={this.setRowRef(node.key)}
           onFocus={this.onRowFocus(node.key)}
@@ -265,7 +267,11 @@ export class RepositoriesTree extends React.Component<
 
     // Non-folder section: a (non-focusable) header followed by its rows.
     return (
-      <div key={node.key} role="presentation" className="repositories-tree-section">
+      <div
+        key={node.key}
+        role="presentation"
+        className="repositories-tree-section"
+      >
         {node.header}
         {node.children.map(child => this.renderNode(child))}
       </div>
@@ -283,6 +289,7 @@ export class RepositoriesTree extends React.Component<
         className="repositories-tree"
         role="tree"
         aria-label="Repositories"
+        tabIndex={-1}
         onKeyDown={this.onKeyDown}
       >
         {this.props.nodes.map(node => this.renderNode(node))}

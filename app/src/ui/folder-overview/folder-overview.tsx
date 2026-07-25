@@ -217,40 +217,36 @@ export class FolderOverview extends React.Component<
     return repos.filter(this.repositoryMatchesFilter)
   }
 
-  private onFolderDragStart = (
-    folder: Folder,
-    event: React.DragEvent<HTMLElement>
-  ) => {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', String(folder.id))
-    this.setState({ dragFolderID: folder.id })
-  }
-
-  private onFolderDragOver = (
-    folder: Folder,
-    event: React.DragEvent<HTMLElement>
-  ) => {
-    const { dragFolderID } = this.state
-    if (dragFolderID === null || dragFolderID === folder.id) {
-      return
+  private onFolderDragStart =
+    (folder: Folder) => (event: React.DragEvent<HTMLElement>) => {
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', String(folder.id))
+      this.setState({ dragFolderID: folder.id })
     }
 
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
+  private onFolderDragOver =
+    (folder: Folder) => (event: React.DragEvent<HTMLElement>) => {
+      const { dragFolderID } = this.state
+      if (dragFolderID === null || dragFolderID === folder.id) {
+        return
+      }
 
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const position = getFolderDropPosition(bounds, event.clientY)
-    const { dropTarget } = this.state
-    if (
-      dropTarget === null ||
-      dropTarget.folderID !== folder.id ||
-      dropTarget.position !== position
-    ) {
-      this.setState({ dropTarget: { folderID: folder.id, position } })
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+
+      const bounds = event.currentTarget.getBoundingClientRect()
+      const position = getFolderDropPosition(bounds, event.clientY)
+      const { dropTarget } = this.state
+      if (
+        dropTarget === null ||
+        dropTarget.folderID !== folder.id ||
+        dropTarget.position !== position
+      ) {
+        this.setState({ dropTarget: { folderID: folder.id, position } })
+      }
     }
-  }
 
-  private onFolderDragLeave = (folder: Folder) => {
+  private onFolderDragLeave = (folder: Folder) => () => {
     if (this.state.dropTarget?.folderID === folder.id) {
       this.setState({ dropTarget: null })
     }
@@ -260,32 +256,30 @@ export class FolderOverview extends React.Component<
     this.setState({ dragFolderID: null, dropTarget: null })
   }
 
-  private onFolderDrop = (
-    folder: Folder,
-    event: React.DragEvent<HTMLElement>
-  ) => {
-    event.preventDefault()
-    const { dragFolderID, dropTarget } = this.state
-    const position = dropTarget?.position ?? 'into'
-    this.setState({ dragFolderID: null, dropTarget: null })
+  private onFolderDrop =
+    (folder: Folder) => (event: React.DragEvent<HTMLElement>) => {
+      event.preventDefault()
+      const { dragFolderID, dropTarget } = this.state
+      const position = dropTarget?.position ?? 'into'
+      this.setState({ dragFolderID: null, dropTarget: null })
 
-    if (dragFolderID === null || dragFolderID === folder.id) {
-      return
-    }
+      if (dragFolderID === null || dragFolderID === folder.id) {
+        return
+      }
 
-    // Prevent dropping a folder into itself or one of its own descendants.
-    const byID = new Map(this.props.folders.map(f => [f.id, f]))
-    if (isFolderSelfOrDescendant(folder.id, dragFolderID, byID)) {
-      return
-    }
+      // Prevent dropping a folder into itself or one of its own descendants.
+      const byID = new Map(this.props.folders.map(f => [f.id, f]))
+      if (isFolderSelfOrDescendant(folder.id, dragFolderID, byID)) {
+        return
+      }
 
-    const dragged = this.props.folders.find(f => f.id === dragFolderID)
-    if (dragged !== undefined) {
-      this.props.dispatcher
-        .moveFolderRelativeTo(dragged, folder, position)
-        .catch(() => undefined)
+      const dragged = this.props.folders.find(f => f.id === dragFolderID)
+      if (dragged !== undefined) {
+        this.props.dispatcher
+          .moveFolderRelativeTo(dragged, folder, position)
+          .catch(() => undefined)
+      }
     }
-  }
 
   private getDisplayTitle(repository: Repositoryish): string {
     return repository instanceof Repository && repository.alias !== null
@@ -293,16 +287,14 @@ export class FolderOverview extends React.Component<
       : repository.name
   }
 
-  private onFolderContextMenu = (
-    folder: Folder,
-    event: React.MouseEvent<HTMLElement>
-  ) => {
-    event.preventDefault()
-    event.stopPropagation()
-    this.setState({
-      folderMenu: { folderID: folder.id, x: event.clientX, y: event.clientY },
-    })
-  }
+  private onFolderContextMenu =
+    (folder: Folder) => (event: React.MouseEvent<HTMLElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      this.setState({
+        folderMenu: { folderID: folder.id, x: event.clientX, y: event.clientY },
+      })
+    }
 
   private closeFolderMenu = () => {
     this.setState({ folderMenu: null })
@@ -331,39 +323,37 @@ export class FolderOverview extends React.Component<
     )
   }
 
-  private onRepositoryContextMenu = (
-    repository: Repositoryish,
-    event: React.MouseEvent<HTMLElement>
-  ) => {
-    event.preventDefault()
-    event.stopPropagation()
+  private onRepositoryContextMenu =
+    (repository: Repositoryish) => (event: React.MouseEvent<HTMLElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
 
-    const items = generateRepositoryListContextMenu({
-      repository,
-      onRemoveRepository: this.props.onRemoveRepository,
-      onShowRepository: this.props.onShowRepository,
-      onOpenInShell: this.props.onOpenInShell,
-      onOpenInExternalEditor: this.props.onOpenInExternalEditor,
-      onViewOnGitHub: this.props.onViewOnGitHub,
-      askForConfirmationOnRemoveRepository:
-        this.props.askForConfirmationOnRemoveRepository,
-      externalEditorLabel: this.props.externalEditorLabel,
-      shellLabel: this.props.shellLabel,
-      onChangeRepositoryAlias: this.onChangeRepositoryAlias,
-      onRemoveRepositoryAlias: this.onRemoveRepositoryAlias,
-      onCreateRepositoryFolder: this.onCreateRepositoryFolder,
-      onUpdateRepositoryFolder: this.onUpdateRepositoryFolder,
-      folders: this.props.folders,
-      onCreateWorktree: enableWorktreeSupport()
-        ? this.onCreateWorktree
-        : undefined,
-      onShowWorktrees: enableWorktreeSupport()
-        ? this.onShowWorktrees
-        : undefined,
-    })
+      const items = generateRepositoryListContextMenu({
+        repository,
+        onRemoveRepository: this.props.onRemoveRepository,
+        onShowRepository: this.props.onShowRepository,
+        onOpenInShell: this.props.onOpenInShell,
+        onOpenInExternalEditor: this.props.onOpenInExternalEditor,
+        onViewOnGitHub: this.props.onViewOnGitHub,
+        askForConfirmationOnRemoveRepository:
+          this.props.askForConfirmationOnRemoveRepository,
+        externalEditorLabel: this.props.externalEditorLabel,
+        shellLabel: this.props.shellLabel,
+        onChangeRepositoryAlias: this.onChangeRepositoryAlias,
+        onRemoveRepositoryAlias: this.onRemoveRepositoryAlias,
+        onCreateRepositoryFolder: this.onCreateRepositoryFolder,
+        onUpdateRepositoryFolder: this.onUpdateRepositoryFolder,
+        folders: this.props.folders,
+        onCreateWorktree: enableWorktreeSupport()
+          ? this.onCreateWorktree
+          : undefined,
+        onShowWorktrees: enableWorktreeSupport()
+          ? this.onShowWorktrees
+          : undefined,
+      })
 
-    showContextualMenu(items)
-  }
+      showContextualMenu(items)
+    }
 
   private onChangeRepositoryAlias = (repository: Repository) => {
     this.props.dispatcher.showPopup({
@@ -436,17 +426,21 @@ export class FolderOverview extends React.Component<
           selected: isSelected,
           'multi-selected': isMultiSelected,
         })}
-        onClick={e => this.onRepositoryClick(repository, e)}
-        onDoubleClick={() => this.props.onSelectRepository(repository)}
-        onContextMenu={e => this.onRepositoryContextMenu(repository, e)}
-        title={repository.path}
+        onClick={this.onRepositoryClick(repository)}
+        onDoubleClick={this.onRepositoryDoubleClick(repository)}
+        onContextMenu={this.onRepositoryContextMenu(repository)}
+        aria-label={repository.path}
       >
         <Octicon className="repo-icon" symbol={icon} />
         <span className="repo-name">{this.getDisplayTitle(repository)}</span>
         <span className="repo-path">{repository.path}</span>
         <span className="repo-indicators">
           {changedFilesCount > 0 && (
-            <span className="changes" title="Uncommitted changes">
+            <span
+              className="changes"
+              role="img"
+              aria-label="Uncommitted changes"
+            >
               <Octicon symbol={octicons.dotFill} />
             </span>
           )}
@@ -476,8 +470,8 @@ export class FolderOverview extends React.Component<
       <Draggable
         key={`${repository.constructor.name}-${repository.id}`}
         isEnabled={true}
-        onDragStart={() => this.onRepositoryDragStart(repository)}
-        onRenderDragElement={() => this.onRenderRepositoryDragElement(repository)}
+        onDragStart={this.onRepositoryDragStart(repository)}
+        onRenderDragElement={this.onRenderRepositoryDragElement(repository)}
         onRemoveDragElement={this.onRemoveRepositoryDragElement}
         dropTargetSelectors={[DropTargetSelector.RepositoryFolder]}
       >
@@ -486,41 +480,53 @@ export class FolderOverview extends React.Component<
     )
   }
 
-  private onRepositoryClick = (
-    repository: Repositoryish,
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    // A plain click only marks the repository (so it can be dragged into a
-    // folder); Ctrl/Cmd extends the selection. Opening happens on double click.
-    if (!(repository instanceof Repository)) {
-      this.setState({ multiSelectedRepositoryIDs: [] })
-      return
+  private onRepositoryClick =
+    (repository: Repositoryish) =>
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      // A plain click only marks the repository (so it can be dragged into a
+      // folder); Ctrl/Cmd extends the selection. Opening happens on double
+      // click.
+      if (!(repository instanceof Repository)) {
+        this.setState({ multiSelectedRepositoryIDs: [] })
+        return
+      }
+
+      const additive = event.ctrlKey || event.metaKey
+      this.setState(prev => {
+        if (!additive) {
+          return { multiSelectedRepositoryIDs: [repository.id] }
+        }
+        const ids = prev.multiSelectedRepositoryIDs
+        return {
+          multiSelectedRepositoryIDs: ids.includes(repository.id)
+            ? ids.filter(id => id !== repository.id)
+            : [...ids, repository.id],
+        }
+      })
     }
 
-    const additive = event.ctrlKey || event.metaKey
-    this.setState(prev => {
-      if (!additive) {
-        return { multiSelectedRepositoryIDs: [repository.id] }
-      }
-      const ids = prev.multiSelectedRepositoryIDs
-      return {
-        multiSelectedRepositoryIDs: ids.includes(repository.id)
-          ? ids.filter(id => id !== repository.id)
-          : [...ids, repository.id],
-      }
-    })
+  private onRepositoryDoubleClick = (repository: Repositoryish) => () => {
+    this.props.onSelectRepository(repository)
   }
 
-  private onRepositoryDragStart(repository: Repository) {
+  private onRepositoryDragStart = (repository: Repository) => () => {
     this.blurActiveElement()
     dragAndDropManager.setDragData({ type: DragType.Repository, repository })
   }
 
-  private onRenderRepositoryDragElement(repository: Repository) {
+  private onRenderRepositoryDragElement = (repository: Repository) => () => {
     this.props.dispatcher.setDragElement({
       type: DragType.Repository,
       repository,
     })
+  }
+
+  private onRenameInputFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    event.currentTarget.select()
+  }
+
+  private onStopPropagation = (event: React.SyntheticEvent) => {
+    event.stopPropagation()
   }
 
   private onRemoveRepositoryDragElement = () => {
@@ -664,13 +670,14 @@ export class FolderOverview extends React.Component<
             }
           )}
           style={headerStyle}
+          role="presentation"
           draggable={!isRenaming}
-          onDragStart={e => this.onFolderDragStart(folder, e)}
-          onDragOver={e => this.onFolderDragOver(folder, e)}
-          onDragLeave={() => this.onFolderDragLeave(folder)}
+          onDragStart={this.onFolderDragStart(folder)}
+          onDragOver={this.onFolderDragOver(folder)}
+          onDragLeave={this.onFolderDragLeave(folder)}
           onDragEnd={this.onFolderDragEnd}
-          onDrop={e => this.onFolderDrop(folder, e)}
-          onContextMenu={e => this.onFolderContextMenu(folder, e)}
+          onDrop={this.onFolderDrop(folder)}
+          onContextMenu={this.onFolderContextMenu(folder)}
           onMouseEnter={this.onRepoDropTargetMouseEnter(folder)}
           onMouseMove={this.onRepoDropTargetMouseMove(folder)}
           onMouseLeave={this.onRepoDropTargetMouseLeave(folder)}
@@ -681,7 +688,7 @@ export class FolderOverview extends React.Component<
             className="folder-overview-disclosure"
             aria-expanded={!collapsed}
             aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${folder.name}`}
-            onClick={e => this.onToggleCollapsed(folder, e)}
+            onClick={this.onToggleCollapsed(folder)}
           >
             <Octicon
               symbol={collapsed ? octicons.chevronRight : octicons.chevronDown}
@@ -698,16 +705,15 @@ export class FolderOverview extends React.Component<
               onChange={this.onRenameDraftChange}
               onKeyDown={this.onRenameKeyDown(folder)}
               onBlur={this.onRenameBlur(folder)}
-              onFocus={e => e.currentTarget.select()}
-              onClick={e => e.stopPropagation()}
-              onDoubleClick={e => e.stopPropagation()}
-              onMouseDown={e => e.stopPropagation()}
+              onFocus={this.onRenameInputFocus}
+              onClick={this.onStopPropagation}
+              onDoubleClick={this.onStopPropagation}
+              onMouseDown={this.onStopPropagation}
             />
           ) : (
             <span
               className="folder-name"
               onDoubleClick={this.onFolderNameDoubleClick(folder)}
-              title="Double-click to rename"
             >
               {folder.name}
             </span>
@@ -731,13 +737,11 @@ export class FolderOverview extends React.Component<
     )
   }
 
-  private onToggleCollapsed = (
-    folder: Folder,
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    event.stopPropagation()
-    this.props.dispatcher.toggleCollapsedRepositoryFolder(folder.id)
-  }
+  private onToggleCollapsed =
+    (folder: Folder) => (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation()
+      this.props.dispatcher.toggleCollapsedRepositoryFolder(folder.id)
+    }
 
   private renderNoFolderSection() {
     const repos = this.props.repositories

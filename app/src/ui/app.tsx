@@ -1095,7 +1095,6 @@ export class App extends React.Component<IAppProps, IAppState> {
     document.addEventListener('focus', this.onDocumentFocus, {
       capture: true,
     })
-
   }
 
   private onDocumentFocus = (event: FocusEvent) => {
@@ -4042,9 +4041,7 @@ export class App extends React.Component<IAppProps, IAppState> {
           onOpenInShell={this.openInShell}
           onOpenInExternalEditor={this.openInExternalEditor}
           externalEditorLabel={this.externalEditorLabel}
-          shellLabel={
-            state.useCustomShell ? undefined : state.selectedShell
-          }
+          shellLabel={state.useCustomShell ? undefined : state.selectedShell}
         />
       )
     }
