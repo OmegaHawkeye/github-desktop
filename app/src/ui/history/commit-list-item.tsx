@@ -25,6 +25,8 @@ import classNames from 'classnames'
 import { Account } from '../../models/account'
 import { Emoji } from '../../lib/emoji'
 import { enableAccessibleListToolTips } from '../../lib/feature-flag'
+import { ICommitGraphRow } from '../../lib/commit-graph'
+import { CommitGraph } from './commit-graph'
 import { TooltippedContent } from '../lib/tooltipped-content'
 import { formatDate } from '../../lib/format-date'
 
@@ -50,6 +52,18 @@ interface ICommitProps {
   readonly unpushedIndicatorTitle?: string
   readonly accounts: ReadonlyArray<Account>
   readonly preferAbsoluteDates: boolean
+
+  /**
+   * The pre-computed graph lane layout for this commit's row. When provided a
+   * SourceTree-style graph column is rendered to the left of the commit info.
+   */
+  readonly graphRow?: ICommitGraphRow
+
+  /** The fixed pixel width of the graph column (constant across all rows). */
+  readonly graphWidth?: number
+
+  /** The height of the row in pixels, used to lay out the graph. */
+  readonly graphRowHeight?: number
 }
 
 interface ICommitListItemState {
@@ -152,6 +166,7 @@ export class CommitListItem extends React.PureComponent<
           onMouseLeave={this.onMouseLeave}
           onMouseUp={this.onMouseUp}
         >
+          {this.renderCommitGraph()}
           <div className="info">
             <RichText
               className={summaryClassNames}
@@ -174,6 +189,29 @@ export class CommitListItem extends React.PureComponent<
           {this.renderCommitIndicators()}
         </div>
       </Draggable>
+    )
+  }
+
+  private renderCommitGraph() {
+    const { graphRow, graphWidth, graphRowHeight } = this.props
+
+    if (
+      graphRow === undefined ||
+      graphWidth === undefined ||
+      graphWidth <= 0 ||
+      graphRowHeight === undefined
+    ) {
+      return null
+    }
+
+    return (
+      <div className="commit-graph-cell" style={{ width: graphWidth }}>
+        <CommitGraph
+          row={graphRow}
+          width={graphWidth}
+          rowHeight={graphRowHeight}
+        />
+      </div>
     )
   }
 

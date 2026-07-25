@@ -125,3 +125,9 @@ export const enableFormattingPreferences = () => true
 
 /** Should the app enable worktree support? */
 export const enableWorktreeSupport = () => true
+
+/**
+ * Should the app render the SourceTree-style branch/commit graph in the history
+ * view?
+ */
+export const enableCommitGraph = () => enableBetaFeatures()

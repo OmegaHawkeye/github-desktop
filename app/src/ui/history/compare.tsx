@@ -34,6 +34,7 @@ import { KeyboardInsertionData } from '../lib/list'
 import { Account } from '../../models/account'
 import { Emoji } from '../../lib/emoji'
 import { formatNumber } from '../../lib/format-number'
+import { enableCommitGraph } from '../../lib/feature-flag'
 
 interface ICompareSidebarProps {
   readonly repository: Repository
@@ -245,6 +246,9 @@ export class CompareSidebar extends React.Component<
         isLocalRepository={this.props.isLocalRepository}
         commitLookup={this.props.commitLookup}
         commitSHAs={commitSHAs}
+        showCommitGraph={
+          enableCommitGraph() && formState.kind === HistoryTabMode.History
+        }
         selectedSHAs={this.props.selectedCommitShas}
         shasToHighlight={this.props.shasToHighlight}
         localCommitSHAs={this.props.localCommitSHAs}
