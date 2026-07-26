@@ -49,6 +49,7 @@ export class Repository {
      * which introduces new users to some core concepts of Git and GitHub.
      */
     public readonly isTutorialRepository: boolean = false,
+    public readonly folderID: number | null = null,
     /**
      * The path to the .git directory for this repository, or undefined if it
      * hasn't been resolved yet (e.g. for repositories added before this
@@ -58,6 +59,11 @@ export class Repository {
   ) {
     this.name = (gitHubRepository && gitHubRepository.name) || getBaseName(path)
 
+    // NB: folderID is intentionally NOT part of the equality hash. Folder
+    // membership is organizational, not part of the repository's identity.
+    // Including it made moving a repository into a folder look like a brand new
+    // repository — which lost its cached state, re-selected it, and closed the
+    // folder overview (see updateRepositorySelectionAfterRepositoriesChanged).
     this.hash = createEqualityHash(
       path,
       this.id,

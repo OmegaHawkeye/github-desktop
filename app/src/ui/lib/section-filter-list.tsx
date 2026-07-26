@@ -101,6 +101,13 @@ interface ISectionFilterListProps<T extends IFilterListItem, GroupIdentifier> {
   readonly onItemClick?: (item: T, source: ClickSource) => void
 
   /**
+   * This function will be called when the user double clicks a row with the
+   * mouse. Consumers can use this together with `onItemClick` to distinguish a
+   * plain click from a double click (e.g. select vs. open).
+   */
+  readonly onItemDoubleClick?: (item: T, source: ClickSource) => void
+
+  /**
    * This function will be called when the selection changes as a result of a
    * user keyboard or mouse action (i.e. not when props change). This function
    * will not be invoked when an already selected row is clicked on.
@@ -156,6 +163,15 @@ interface ISectionFilterListProps<T extends IFilterListItem, GroupIdentifier> {
 
   /** Called when there are no items to render.  */
   readonly renderNoItems?: () => JSX.Element | null
+
+  /**
+   * Optional predicate for keeping a group visible even when it has no items.
+   * When true, a section containing only the header row will still be rendered.
+   */
+  // Consumed by the module-level createStateUpdate helper via `props`, which the
+  // rule can't see, so it reports a false positive here.
+  // eslint-disable-next-line react/no-unused-prop-types
+  readonly shouldKeepGroupWhenEmpty?: (identifier: GroupIdentifier) => boolean
 
   /**
    * A reference to a TextBox that will be used to control this component.
@@ -400,6 +416,7 @@ export class SectionFilterList<
           }
           onSelectedRowChanged={this.onSelectedRowChanged}
           onRowClick={this.onRowClick}
+          onRowDoubleClick={this.onRowDoubleClick}
           onRowKeyDown={this.onRowKeyDown}
           onRowContextMenu={this.onRowContextMenu}
           canSelectRow={this.canSelectRow}
@@ -535,6 +552,16 @@ export class SectionFilterList<
 
       if (row.kind === 'item') {
         this.props.onItemClick(row.item, source)
+      }
+    }
+  }
+
+  private onRowDoubleClick = (index: RowIndexPath, source: ClickSource) => {
+    if (this.props.onItemDoubleClick) {
+      const row = this.state.rows[index.section][index.row]
+
+      if (row.kind === 'item') {
+        this.props.onItemDoubleClick(row.item, source)
       }
     }
   }
@@ -732,7 +759,10 @@ function createStateUpdate<T extends IFilterListItem, GroupIdentifier>(
           item,
         }))
 
-    if (!items.length) {
+    if (
+      !items.length &&
+      props.shouldKeepGroupWhenEmpty?.(group.identifier) !== true
+    ) {
       continue
     }
 

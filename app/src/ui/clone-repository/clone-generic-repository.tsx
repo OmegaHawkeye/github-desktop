@@ -4,6 +4,12 @@ import { Button } from '../lib/button'
 import { Row } from '../lib/row'
 import { DialogContent } from '../dialog'
 import { Ref } from '../lib/ref'
+import { Select } from '../lib/select'
+import { Folder } from '../../models/folder'
+import {
+  getFolderPathLabel,
+  getFoldersInTreeOrder,
+} from '../repositories-list/group-repositories'
 
 interface ICloneGenericRepositoryProps {
   /** The URL to clone. */
@@ -22,6 +28,9 @@ interface ICloneGenericRepositoryProps {
    * Called when the user should be prompted to choose a directory to clone to.
    */
   readonly onChooseDirectory: () => Promise<string | undefined>
+  readonly folders: ReadonlyArray<Folder>
+  readonly selectedFolderID: number | null
+  readonly onSelectedFolderChanged: (folderID: number | null) => void
 }
 
 /** The component for cloning a repository. */
@@ -58,11 +67,32 @@ export class CloneGenericRepository extends React.Component<
           />
           <Button onClick={this.props.onChooseDirectory}>Choose…</Button>
         </Row>
+        <Row>
+          <Select
+            label={__DARWIN__ ? 'Repository Folder' : 'Repository folder'}
+            value={this.props.selectedFolderID?.toString() ?? ''}
+            onChange={this.onFolderChanged}
+          >
+            <option value="">No folder</option>
+            {getFoldersInTreeOrder(this.props.folders).map(folder => (
+              <option key={folder.id} value={folder.id.toString()}>
+                {getFolderPathLabel(folder, this.props.folders)}
+              </option>
+            ))}
+          </Select>
+        </Row>
       </DialogContent>
     )
   }
 
   private onUrlChanged = (url: string) => {
     this.props.onUrlChanged(url)
+  }
+
+  private onFolderChanged = (event: React.FormEvent<HTMLSelectElement>) => {
+    const value = event.currentTarget.value
+    this.props.onSelectedFolderChanged(
+      value === '' ? null : parseInt(value, 10)
+    )
   }
 }

@@ -3,7 +3,106 @@
 .repository-list {
   height: 100%;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+
+  // Give the whole repository sidebar a single cohesive background so the
+  // folders and repositories read as one panel rather than patchy rows.
+  background: var(--background-color);
+
+  // Filter box + "Add" button across the top of the sidebar.
+  .filter-field-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-half);
+    margin: var(--spacing);
+    flex-shrink: 0;
+
+    .text-box-component {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  // Scrolls the nested tree (this replaces the old virtualized list's scroll).
+  .repository-list-scroller {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  // Non-virtualized nested tree. A folder element literally wraps its
+  // subfolders and repos, so one continuous color band can run behind the whole
+  // folder.
+  .repositories-tree {
+    &:focus {
+      outline: none;
+    }
+
+    .repositories-tree-repo:focus-visible,
+    .repositories-tree-folder:focus-visible {
+      outline: none;
+    }
+
+    // The focused row (roving tabstop) gets a subtle inset ring for keyboard
+    // users without disturbing layout.
+    .repositories-tree-repo:focus-visible > *,
+    .repositories-tree-folder:focus-visible > .repository-folder-header-wrapper {
+      box-shadow: inset 0 0 0 2px var(--focus-color);
+      border-radius: var(--border-radius);
+    }
+
+    // A colored folder's children wrapper carries the folder color as a thick
+    // left band spanning the folder and everything nested inside it. The left
+    // padding equals the band width so a nested colored folder's band butts
+    // directly against its parent's with no gap.
+    .repositories-tree-children {
+      padding-left: 6px;
+
+      &.has-color {
+        box-shadow: inset 6px 0 0 var(--folder-band-color);
+      }
+    }
+
+    // Neutral full-width hit target + hover/selection for a repository row.
+    .repository-row-content {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      padding: var(--spacing-half) var(--spacing);
+      border-radius: var(--border-radius);
+    }
+
+    .repositories-tree-repo {
+      &:hover .repository-row-content,
+      &:hover .repository-folder-section-drop-target {
+        background: var(--list-item-hover-background-color);
+      }
+
+      // Match the folder overview's selected highlight exactly.
+      &.selected .repository-row-content,
+      &.selected .repository-folder-section-drop-target {
+        background: var(--box-selected-background-color);
+        color: var(--box-selected-text-color);
+
+        .repository-list-item,
+        .name,
+        .octicon {
+          color: var(--box-selected-text-color);
+        }
+      }
+
+      // Marked with a single click / Ctrl+click. Matches the folder overview's
+      // mark: the selected-list background plus an accent left edge, applied to
+      // the whole row (not the indented inner item).
+      &.multi-selected .repository-row-content,
+      &.multi-selected .repository-folder-section-drop-target {
+        background: var(--list-item-selected-background-color);
+        box-shadow: inset 3px 0 0 var(--accent-color);
+      }
+    }
+  }
 
   /**
    * Inherit the min-width from the ToolbarDropdown so that the repositories
@@ -49,6 +148,8 @@
       // Long repository names truncate and ellipse
       @include ellipsis;
 
+      letter-spacing: 0.01em;
+
       .prefix {
         color: var(--text-secondary-color);
       }
@@ -72,6 +173,181 @@
     text-overflow: ellipsis;
     overflow-x: hidden;
     white-space: nowrap;
+  }
+
+  /** Full-width hit target for folder rows (drag source + drop target). */
+  .repository-folder-header-wrapper {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+  }
+
+  .list-item[role='presentation'] .list-item-content-wrapper {
+    min-width: 0;
+
+    > .repository-folder-header-wrapper {
+      flex: 1 1 auto;
+    }
+  }
+
+  .draggable {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+  }
+
+  .repository-folder-drop-target {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    flex: 1 1 auto;
+    align-self: stretch;
+    // Fill the fixed virtualized row height exactly. A larger min-height plus a
+    // top margin used to overflow the row and get clipped, which showed up as a
+    // collapsed folder header looking "cut off".
+    min-height: 0;
+    box-sizing: border-box;
+    padding: var(--spacing-half) var(--spacing);
+    margin-top: 0;
+    border-radius: var(--border-radius);
+
+    &.active-drop-target {
+      background: var(--list-item-hover-background-color);
+    }
+
+    &.folder-drop-before {
+      box-shadow: inset 0 2px 0 var(--accent-color);
+    }
+
+    &.folder-drop-after {
+      box-shadow: inset 0 -2px 0 var(--accent-color);
+    }
+
+    &.folder-drop-into {
+      box-shadow: inset 0 0 0 2px var(--accent-color);
+    }
+  }
+
+  .repository-folder-header {
+    position: relative;
+    gap: var(--spacing-half);
+    // Give folder rows a subtle raised background so the tree structure and
+    // the boundaries between folders are easy to see at a glance.
+    background: var(--box-alt-background-color);
+    font-weight: var(--font-weight-semibold);
+
+    &:hover {
+      background: var(--list-item-hover-background-color);
+    }
+
+    // When the folder has a custom color its background/text are set inline.
+    // The header is the top of a solid colored backdrop that continues down
+    // through the folder's repositories, so only round its top corners and
+    // keep the bottom flush with the first repository row below it.
+    &.has-color {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+
+      .octicon,
+      .repository-folder-disclosure-button {
+        color: inherit;
+      }
+
+      // Keep the disclosure chevron readable on the folder colour on hover.
+      .repository-folder-disclosure-button:hover {
+        color: inherit;
+      }
+
+      // Flat, borderless hover: a subtle darken of the folder colour, matching
+      // the simple hover feedback used elsewhere in GitHub Desktop (an inline
+      // background can't be recoloured via CSS directly, so we overlay it).
+      &:hover {
+        box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.1);
+      }
+
+      // Collapsed folders have no repositories below them, so round every
+      // corner instead of leaving a flat bottom edge that looks cut off.
+      &.collapsed {
+        border-bottom-left-radius: var(--border-radius);
+        border-bottom-right-radius: var(--border-radius);
+      }
+    }
+  }
+
+  // Repositories that live inside a folder sit on the panel background; their
+  // folder membership is shown by the continuous color band on the enclosing
+  // .repositories-tree-children wrapper. The neutral background lets the
+  // built-in hover and selection backgrounds show through unchanged.
+  .repository-folder-section-drop-target {
+    background: transparent;
+    margin-top: 0;
+
+    &.has-color {
+      // Square corners so the folder's color band reads as one continuous bar
+      // running down the folder's repositories.
+      border-radius: 0;
+    }
+  }
+
+  .repository-folder-disclosure-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-secondary-color);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
+
+    // Darken the chevron slightly on hover (a translucent overlay works on both
+    // the plain header background and a custom folder colour).
+    &:hover {
+      background: rgba(0, 0, 0, 0.18);
+      color: var(--text-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--focus-color);
+      outline-offset: 1px;
+    }
+
+    &:active .octicon {
+      transform: scale(0.92);
+    }
+
+    .octicon {
+      margin: 0;
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  .repository-folder-drop-target-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-overflow: ellipsis;
+    overflow-x: hidden;
+    white-space: nowrap;
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.01em;
+  }
+
+  /** Ensures empty space to the right of the folder title is still the folder row (for drops). */
+  .repository-folder-drop-target-spacer {
+    flex: 1 1 auto;
+    min-width: var(--spacing);
+    align-self: stretch;
   }
 
   .new-repository-button {
@@ -221,5 +497,51 @@
 
   .change-indicator-wrapper {
     justify-content: unset;
+  }
+}
+
+/**
+ * Repository picker foldout (Current repository toolbar dropdown).
+ * Keeps background, list, and filter chrome on the same tonal plane as the
+ * toolbar so dark mode does not show a bright “card” over dark chrome.
+ */
+#foldout-container .foldout:has(.repository-list) {
+  background-color: var(--repository-sidebar-background);
+  color: var(--text-color);
+
+  .repository-list,
+  .filter-list,
+  .filter-list-container {
+    background-color: var(--repository-sidebar-background);
+  }
+
+  .list .ReactVirtualized__Grid {
+    background-color: var(--repository-sidebar-background);
+  }
+
+  .filter-field-row {
+    margin: 0;
+    padding: var(--spacing) var(--spacing);
+    gap: var(--spacing-half);
+    align-items: center;
+    flex-wrap: nowrap;
+    border-bottom: 1px solid var(--box-border-color);
+    background: var(--box-alt-background-color);
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+
+    .text-box-component {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .new-repository-button.button-component {
+      flex-shrink: 0;
+    }
+  }
+}
+
+body.theme-dark #foldout-container .foldout:has(.repository-list) {
+  .filter-field-row {
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
   }
 }

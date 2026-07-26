@@ -30,15 +30,23 @@ import { showOpenDialog, showSaveDialog } from '../main-process-proxy'
 import { readdir } from 'fs/promises'
 import { isTopMostDialog } from '../dialog/is-top-most'
 import memoizeOne from 'memoize-one'
+import { Folder } from '../../models/folder'
 
 interface ICloneRepositoryProps {
   readonly dispatcher: Dispatcher
   readonly onDismissed: () => void
 
   readonly accounts: ReadonlyArray<Account>
+  readonly folders: ReadonlyArray<Folder>
 
   /** The initial URL or `owner/name` shortcut to use. */
   readonly initialURL: string | null
+
+  /**
+   * An optional folder to preselect as the destination folder. Used when the
+   * dialog is opened from a folder's context menu.
+   */
+  readonly initialFolderID?: number | null
 
   /** The currently select tab. */
   readonly selectedTab: CloneRepositoryTab
@@ -113,6 +121,9 @@ interface IBaseTabState {
   /** The current error if one occurred. */
   readonly error: Error | null
 
+  /** The selected repository folder. */
+  readonly folderID: number | null
+
   /**
    * The repository identifier that was last parsed from the user-entered URL.
    */
@@ -183,6 +194,7 @@ export class CloneRepository extends React.Component<
 
     const initialBaseTabState: IBaseTabState = {
       error: null,
+      folderID: this.props.initialFolderID ?? null,
       lastParsedIdentifier: null,
       path: defaultDirectory,
       url: this.props.initialURL || '',
@@ -338,6 +350,10 @@ export class CloneRepository extends React.Component<
     this.setSelectedTabState({ path }, this.validatePath)
   }
 
+  private onFolderChanged = (folderID: number | null) => {
+    this.setSelectedTabState({ folderID })
+  }
+
   private renderActiveTab() {
     const tab = this.props.selectedTab
 
@@ -346,11 +362,14 @@ export class CloneRepository extends React.Component<
         const tabState = this.state.urlTabState
         return (
           <CloneGenericRepository
+            folders={this.props.folders}
             path={tabState.path ?? ''}
+            selectedFolderID={tabState.folderID}
             url={tabState.url}
             onPathChanged={this.onPathChanged}
             onUrlChanged={this.updateUrl}
             onChooseDirectory={this.onChooseDirectory}
+            onSelectedFolderChanged={this.onFolderChanged}
           />
         )
 
@@ -371,9 +390,11 @@ export class CloneRepository extends React.Component<
 
           return (
             <CloneGithubRepository
+              folders={this.props.folders}
               path={tabState.path ?? ''}
               account={selectedAccount}
               accounts={tabAccounts}
+              selectedFolderID={tabState.folderID}
               selectedItem={tabState.selectedItem}
               onSelectionChanged={this.onSelectionChanged}
               onPathChanged={this.onPathChanged}
@@ -385,6 +406,7 @@ export class CloneRepository extends React.Component<
               onFilterTextChanged={this.onFilterTextChanged}
               onItemClicked={this.onItemClicked}
               onSelectedAccountChanged={this.onSelectedAccountChanged}
+              onSelectedFolderChanged={this.onFolderChanged}
             />
           )
         }
@@ -760,7 +782,7 @@ export class CloneRepository extends React.Component<
     this.setState({ loading: true })
 
     const cloneInfo = await this.resolveCloneInfo()
-    const { path } = this.getSelectedTabState()
+    const { path, folderID } = this.getSelectedTabState()
 
     if (path == null) {
       const error = new Error(`Directory could not be created at this path.`)
@@ -782,7 +804,7 @@ export class CloneRepository extends React.Component<
 
     this.props.dispatcher.closeFoldout(FoldoutType.Repository)
     try {
-      this.cloneImpl(url.trim(), path, defaultBranch)
+      this.cloneImpl(url.trim(), path, folderID, defaultBranch)
     } catch (e) {
       log.error(`CloneRepository: clone failed to complete to ${path}`, e)
       this.setState({ loading: false })
@@ -790,8 +812,13 @@ export class CloneRepository extends React.Component<
     }
   }
 
-  private cloneImpl(url: string, path: string, defaultBranch?: string) {
-    this.props.dispatcher.clone(url, path, { defaultBranch })
+  private cloneImpl(
+    url: string,
+    path: string,
+    folderID: number | null,
+    defaultBranch?: string
+  ) {
+    this.props.dispatcher.clone(url, path, { defaultBranch, folderID })
     this.props.onDismissed()
 
     setDefaultDir(Path.resolve(path, '..'))

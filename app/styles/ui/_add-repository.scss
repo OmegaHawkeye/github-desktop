@@ -94,6 +94,12 @@ dialog.clone-repository {
     padding: var(--spacing-double);
   }
 
+  // Inset the repository folder selector to line up with the local path field
+  // above it (whose row is padded by spacing-double on each side).
+  .repository-folder-field {
+    padding: 0 var(--spacing-double) var(--spacing-double);
+  }
+
   .dialog-content {
     > .row-component:not(:last-child) {
       margin-bottom: 0;

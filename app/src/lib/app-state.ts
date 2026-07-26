@@ -69,6 +69,7 @@ import { IAPIRepoRuleset } from './api'
 import { ICustomIntegration } from './custom-integration'
 import { Emoji } from './emoji'
 import { IUpdateState } from '../ui/lib/update-store'
+import { Folder } from '../models/folder'
 
 export enum SelectionType {
   Repository,
@@ -96,6 +97,16 @@ export interface IAppState {
    * The current list of repositories tracked in the application
    */
   readonly repositories: ReadonlyArray<Repository | CloningRepository>
+  /** The complete list of repository folders defined by the user. */
+  readonly folders: ReadonlyArray<Folder>
+  /** IDs of folders whose contents are currently hidden in the repository list. */
+  readonly collapsedRepositoryFolderIDs: ReadonlyArray<number>
+
+  /**
+   * Whether the folder overview (a full main-area view listing every folder
+   * and the repositories it contains) is currently shown.
+   */
+  readonly showFolderOverview: boolean
 
   /**
    * List of IDs of the most recently opened repositories (most recent first)

@@ -4,6 +4,7 @@ import { MenuListItem } from './menu-list-item'
 import { AppMenu, CloseSource } from './app-menu'
 import { ToolbarDropdown } from '../toolbar'
 import { Dispatcher } from '../dispatcher'
+import { executeMenuItemById } from '../main-process-proxy'
 
 interface IAppMenuBarButtonProps {
   /**
@@ -250,6 +251,10 @@ export class AppMenuBarButton extends React.Component<
   ) => {
     if (this.isMenuOpen) {
       this.props.onClose(this.props.menuItem, source)
+    } else if (this.props.menuItem.id === 'folders') {
+      // The "Folders" top-level menu acts as a direct action: a single click
+      // opens the folder overview instead of expanding a submenu.
+      executeMenuItemById('show-folder-overview')
     } else {
       this.props.onOpen(this.props.menuItem, true)
     }

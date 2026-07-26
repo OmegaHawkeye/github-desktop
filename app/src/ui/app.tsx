@@ -57,6 +57,7 @@ import {
   WorktreeDropdown,
   RevertProgress,
 } from './toolbar'
+import { FolderOverview } from './folder-overview/folder-overview'
 import { iconForRepository, OcticonSymbol } from './octicons'
 import * as octicons from './octicons/octicons.generated'
 import {
@@ -142,9 +143,13 @@ import {
 } from '../lib/get-account-for-repository'
 import { CommitOneLine } from '../models/commit'
 import { CommitDragElement } from './drag-elements/commit-drag-element'
+import { RepositoryListDragElement } from './drag-elements/repository-list-drag-element'
 import classNames from 'classnames'
 import { MoveToApplicationsFolder } from './move-to-applications-folder'
 import { ChangeRepositoryAlias } from './change-repository-alias/change-repository-alias-dialog'
+import { ChangeRepositoryFolder } from './change-repository-folder/change-repository-folder-dialog'
+import { DeleteRepositoryFolder } from './change-repository-folder/delete-repository-folder-dialog'
+import { MoveRepositoryToFolder } from './change-repository-folder/move-repository-to-folder-dialog'
 import { ThankYou } from './thank-you'
 import {
   getUserContributions,
@@ -465,6 +470,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.showChanges(true)
       case 'show-history':
         return this.showHistory(true)
+      case 'show-folder-overview':
+        return this.onToggleFolderOverview()
       case 'choose-repository':
         return this.chooseRepository()
       case 'add-local-repository':
@@ -1856,6 +1863,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             path={popup.path}
+            folderID={popup.folderID}
           />
         )
       case PopupType.CreateRepository:
@@ -1873,7 +1881,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           <CloneRepository
             key="clone-repository"
             accounts={this.state.accounts}
+            folders={this.state.folders}
             initialURL={popup.initialURL}
+            initialFolderID={popup.initialFolderID}
             onDismissed={onPopupDismissedFn}
             dispatcher={this.props.dispatcher}
             selectedTab={this.state.selectedCloneRepositoryTab}
@@ -2358,6 +2368,46 @@ export class App extends React.Component<IAppProps, IAppState> {
           <ChangeRepositoryAlias
             dispatcher={this.props.dispatcher}
             repository={popup.repository}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.CreateRepositoryFolder: {
+        return (
+          <ChangeRepositoryFolder
+            dispatcher={this.props.dispatcher}
+            repository={popup.repository}
+            initialName={popup.initialName}
+            parentFolderID={popup.parentFolderID}
+            positionRelativeTo={popup.positionRelativeTo}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.RenameRepositoryFolder: {
+        return (
+          <ChangeRepositoryFolder
+            dispatcher={this.props.dispatcher}
+            folder={popup.folder}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.DeleteRepositoryFolder: {
+        return (
+          <DeleteRepositoryFolder
+            dispatcher={this.props.dispatcher}
+            folder={popup.folder}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      }
+      case PopupType.MoveRepositoryToFolder: {
+        return (
+          <MoveRepositoryToFolder
+            dispatcher={this.props.dispatcher}
+            repository={popup.repository}
+            folder={popup.folder}
             onDismissed={onPopupDismissedFn}
           />
         )
@@ -3271,9 +3321,9 @@ export class App extends React.Component<IAppProps, IAppState> {
       return null
     }
 
-    const { gitHubRepository, commit, selectedCommits } = currentDragElement
     switch (currentDragElement.type) {
-      case DragType.Commit:
+      case DragType.Commit: {
+        const { gitHubRepository, commit, selectedCommits } = currentDragElement
         return (
           <CommitDragElement
             gitHubRepository={gitHubRepository}
@@ -3283,9 +3333,24 @@ export class App extends React.Component<IAppProps, IAppState> {
             accounts={this.state.accounts}
           />
         )
+      }
+      case DragType.Repository:
+        return (
+          <RepositoryListDragElement
+            kind="repository"
+            repository={currentDragElement.repository}
+          />
+        )
+      case DragType.RepositoryFolder:
+        return (
+          <RepositoryListDragElement
+            kind="folder"
+            folder={currentDragElement.folder}
+          />
+        )
       default:
         return assertNever(
-          currentDragElement.type,
+          currentDragElement,
           `Unknown drag element type: ${currentDragElement}`
         )
     }
@@ -3357,6 +3422,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         selectedRepository={selectedRepository}
         onSelectionChanged={this.onSelectionChanged}
         repositories={repositories}
+        folders={this.state.folders}
+        collapsedFolderIDs={this.state.collapsedRepositoryFolderIDs}
         recentRepositories={this.state.recentRepositories}
         localRepositoryStateLookup={this.state.localRepositoryStateLookup}
         askForConfirmationOnRemoveRepository={
@@ -3544,11 +3611,25 @@ export class App extends React.Component<IAppProps, IAppState> {
       this.props.dispatcher.changeRepositoryAlias(repository, null)
     }
 
+    const onCreateRepositoryFolder = (repository: Repository) => {
+      this.props.dispatcher.showPopup({
+        type: PopupType.CreateRepositoryFolder,
+        repository,
+      })
+    }
+
     const onCreateWorktree = (repository: Repository) => {
       this.props.dispatcher.showPopup({
         type: PopupType.AddWorktree,
         repository,
       })
+    }
+
+    const onUpdateRepositoryFolder = (
+      repository: Repository,
+      folderID: number | null
+    ) => {
+      this.props.dispatcher.updateRepositoryFolder(repository, folderID)
     }
 
     const onShowWorktrees = () => {
@@ -3565,7 +3646,10 @@ export class App extends React.Component<IAppProps, IAppState> {
       externalEditorLabel: this.externalEditorLabel,
       onChangeRepositoryAlias: onChangeRepositoryAlias,
       onRemoveRepositoryAlias: onRemoveRepositoryAlias,
+      onCreateRepositoryFolder: onCreateRepositoryFolder,
+      onUpdateRepositoryFolder: onUpdateRepositoryFolder,
       onViewOnGitHub: this.viewOnGitHub,
+      folders: this.state.folders,
       onCreateWorktree: enableWorktreeSupport() ? onCreateWorktree : undefined,
       onShowWorktrees: enableWorktreeSupport() ? onShowWorktrees : undefined,
       repository: repository,
@@ -3906,6 +3990,17 @@ export class App extends React.Component<IAppProps, IAppState> {
     )
   }
 
+  private onToggleFolderOverview = () => {
+    this.props.dispatcher.setShowFolderOverview(!this.state.showFolderOverview)
+  }
+
+  private onFolderOverviewRepositorySelected = (
+    repository: Repository | CloningRepository
+  ) => {
+    this.props.dispatcher.selectRepository(repository)
+    this.props.dispatcher.setShowFolderOverview(false)
+  }
+
   private renderRepository() {
     const { accounts } = this.state
 
@@ -3926,6 +4021,30 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
 
     const state = this.state
+
+    if (state.showFolderOverview) {
+      return (
+        <FolderOverview
+          dispatcher={this.props.dispatcher}
+          repositories={state.repositories}
+          folders={state.folders}
+          collapsedFolderIDs={state.collapsedRepositoryFolderIDs}
+          localRepositoryStateLookup={state.localRepositoryStateLookup}
+          selectedRepository={state.selectedState?.repository ?? null}
+          onSelectRepository={this.onFolderOverviewRepositorySelected}
+          askForConfirmationOnRemoveRepository={
+            state.askForConfirmationOnRepositoryRemoval
+          }
+          onRemoveRepository={this.removeRepository}
+          onShowRepository={this.showRepository}
+          onViewOnGitHub={this.viewOnGitHub}
+          onOpenInShell={this.openInShell}
+          onOpenInExternalEditor={this.openInExternalEditor}
+          externalEditorLabel={this.externalEditorLabel}
+          shellLabel={state.useCustomShell ? undefined : state.selectedShell}
+        />
+      )
+    }
 
     const selectedState = state.selectedState
     if (!selectedState) {

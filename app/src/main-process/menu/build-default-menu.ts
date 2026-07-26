@@ -510,6 +510,18 @@ export function buildDefaultMenuTemplate({
     submenu: branchSubmenu,
   })
 
+  template.push({
+    label: __DARWIN__ ? 'Folders' : 'F&olders',
+    id: 'folders',
+    submenu: [
+      {
+        label: __DARWIN__ ? 'Repository Overview' : 'Repository &overview',
+        id: 'show-folder-overview',
+        click: emit('show-folder-overview'),
+      },
+    ],
+  })
+
   if (__DARWIN__) {
     template.push({
       role: 'window',

@@ -88,6 +88,7 @@ import {
   getNonForkGitHubRepository,
   isForkedRepositoryContributingToParent,
 } from '../../models/repository'
+import { Folder } from '../../models/folder'
 import {
   CommittedFileChange,
   WorkingDirectoryFileChange,
@@ -271,6 +272,12 @@ import { TypedBaseStore } from './base-store'
 import { MergeTreeResult } from '../../models/merge'
 import { promiseWithMinimumTimeout } from '../promise'
 import { BackgroundFetcher } from './helpers/background-fetcher'
+import {
+  cleanupCollapsedRepositoryFolderIDs,
+  loadCollapsedRepositoryFolderIDs,
+  saveCollapsedRepositoryFolderIDs,
+  toggleCollapsedRepositoryFolderID,
+} from './helpers/collapsed-repository-folders-storage'
 import { RepositoryStateCache } from './repository-state-cache'
 import { readEmoji } from '../read-emoji'
 import { Emoji } from '../emoji'
@@ -578,6 +585,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   private accounts: ReadonlyArray<Account> = new Array<Account>()
   private repositories: ReadonlyArray<Repository> = new Array<Repository>()
+  private folders: ReadonlyArray<Folder> = new Array<Folder>()
+  private collapsedRepositoryFolderIDs: ReadonlyArray<number> =
+    new Array<number>()
+  private showFolderOverview: boolean = false
   private recentRepositories: ReadonlyArray<number> = new Array<number>()
 
   private selectedRepository: Repository | CloningRepository | null = null
@@ -1046,8 +1057,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
     })
     this.accountsStore.onDidError(error => this.emitError(error))
 
-    this.repositoriesStore.onDidUpdate(updateRepositories => {
+    this.repositoriesStore.onDidUpdate(async updateRepositories => {
       this.repositories = updateRepositories
+      this.folders = await this.repositoriesStore.getAllFolders()
+      this.cleanupCollapsedRepositoryFolders(false)
       this.updateRepositorySelectionAfterRepositoriesChanged()
       this.emitUpdate()
     })
@@ -1261,6 +1274,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return {
       accounts: this.accounts,
       repositories,
+      folders: this.folders,
+      collapsedRepositoryFolderIDs: this.collapsedRepositoryFolderIDs,
+      showFolderOverview: this.showFolderOverview,
       recentRepositories: this.recentRepositories,
       localRepositoryStateLookup: this.localRepositoryStateLookup,
       windowState: this.windowState,
@@ -2137,6 +2153,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     this.selectedRepository = repository
 
+    // Selecting a repository (e.g. from the repository switcher) should take
+    // the user to that repository, leaving the folder overview behind.
+    if (repository !== null) {
+      this.showFolderOverview = false
+    }
+
     this.emitUpdate()
     this.stopBackgroundFetching()
     this.stopPullRequestUpdater()
@@ -2412,9 +2434,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   /** Load the initial state for the app. */
   public async loadInitialState() {
-    const [accounts, repositories] = await Promise.all([
+    const [accounts, repositories, folders] = await Promise.all([
       this.accountsStore.getAll(),
       this.repositoriesStore.getAll(),
+      this.repositoriesStore.getAllFolders(),
     ])
 
     log.info(
@@ -2426,6 +2449,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     this.accounts = accounts
     this.repositories = repositories
+    this.folders = folders
+    this.collapsedRepositoryFolderIDs = loadCollapsedRepositoryFolderIDs()
+    this.cleanupCollapsedRepositoryFolders(false)
 
     this.updateRepositorySelectionAfterRepositoriesChanged()
 
@@ -8061,7 +8087,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   public async _addRepositories(
-    paths: ReadonlyArray<string>
+    paths: ReadonlyArray<string>,
+    options?: { folderID?: number | null }
   ): Promise<ReadonlyArray<Repository>> {
     const addedRepositories = new Array<Repository>()
     const lfsRepositories = new Array<Repository>()
@@ -8095,12 +8122,30 @@ export class AppStore extends TypedBaseStore<IAppState> {
         // and isUsingLFS if the repo already exists in the app.
         if (existing !== undefined) {
           addedRepositories.push(existing)
+
+          // If the caller targeted a specific folder (e.g. "Add existing
+          // repository" from a folder's context menu) and the repository is
+          // already in the app, prompt to move it — or tell the user it's
+          // already in that folder — rather than silently doing nothing.
+          const targetFolderID = options?.folderID
+          if (targetFolderID !== undefined && targetFolderID !== null) {
+            const folder = this.folders.find(f => f.id === targetFolderID)
+            if (folder !== undefined) {
+              this._showPopup({
+                type: PopupType.MoveRepositoryToFolder,
+                repository: existing,
+                folder,
+              })
+            }
+          }
+
           continue
         }
 
         const addedRepo = await this.repositoriesStore.addRepository(
           validatedPath,
-          repositoryType.gitDir
+          repositoryType.gitDir,
+          { folderID: options?.folderID ?? null }
         )
 
         // initialize the remotes for this new repository to ensure it can fetch
@@ -8336,6 +8381,106 @@ export class AppStore extends TypedBaseStore<IAppState> {
    */
   public _refreshApiRepositories(account: Account) {
     return this.apiRepositoriesStore.loadRepositories(account)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _createRepositoryFolder(
+    name: string,
+    parentFolderID?: number | null
+  ): Promise<Folder> {
+    return this.repositoriesStore.createFolder(name, parentFolderID ?? null)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
+    return this.repositoriesStore.renameFolder(folder, name)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _setRepositoryFolderColor(
+    folder: Folder,
+    color: string | null
+  ): Promise<void> {
+    return this.repositoriesStore.setFolderColor(folder, color)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _reorderRepositoryFolders(
+    folders: ReadonlyArray<Folder>
+  ): Promise<void> {
+    return this.repositoriesStore.reorderFolders(folders)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _reparentRepositoryFolder(
+    folder: Folder,
+    newParentFolderID: number | null
+  ): Promise<void> {
+    return this.repositoriesStore.reparentFolder(folder, newParentFolderID)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _moveFolderRelativeTo(
+    moved: Folder,
+    target: Folder,
+    position: 'before' | 'after' | 'into'
+  ): Promise<void> {
+    return this.repositoriesStore.moveFolderRelativeTo(moved, target, position)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
+    this.collapsedRepositoryFolderIDs = toggleCollapsedRepositoryFolderID(
+      this.collapsedRepositoryFolderIDs,
+      folderID
+    )
+    saveCollapsedRepositoryFolderIDs(this.collapsedRepositoryFolderIDs)
+    this.emitUpdate()
+
+    return Promise.resolve()
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _setShowFolderOverview(show: boolean): Promise<void> {
+    if (this.showFolderOverview !== show) {
+      this.showFolderOverview = show
+      this.emitUpdate()
+    }
+
+    return Promise.resolve()
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _deleteRepositoryFolder(folder: Folder): Promise<void> {
+    return this.repositoriesStore.deleteFolder(folder)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _updateRepositoryFolder(
+    repository: Repository,
+    folderID: number | null
+  ): Promise<void> {
+    return this.repositoriesStore.updateRepositoryFolder(repository, folderID)
+  }
+
+  private cleanupCollapsedRepositoryFolders(emitUpdate: boolean = true) {
+    const nextCollapsedFolderIDs = cleanupCollapsedRepositoryFolderIDs(
+      this.collapsedRepositoryFolderIDs,
+      this.folders
+    )
+
+    if (
+      nextCollapsedFolderIDs.length === this.collapsedRepositoryFolderIDs.length
+    ) {
+      return
+    }
+
+    this.collapsedRepositoryFolderIDs = nextCollapsedFolderIDs
+    saveCollapsedRepositoryFolderIDs(this.collapsedRepositoryFolderIDs)
+
+    if (emitUpdate) {
+      this.emitUpdate()
+    }
   }
 
   public _changeBranchesTab(tab: BranchesTab): Promise<void> {

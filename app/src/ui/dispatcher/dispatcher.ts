@@ -93,6 +93,7 @@ import {
 } from '../../models/status'
 import { TipState, IValidBranch } from '../../models/tip'
 import { Banner, BannerType } from '../../models/banner'
+import { Folder } from '../../models/folder'
 
 import { ApplicationTheme } from '../lib/application-theme'
 import { installCLI } from '../lib/install-cli'
@@ -177,9 +178,10 @@ export class Dispatcher {
    * this will post an error to that affect.
    */
   public addRepositories(
-    paths: ReadonlyArray<string>
+    paths: ReadonlyArray<string>,
+    options?: { folderID?: number | null }
   ): Promise<ReadonlyArray<Repository>> {
-    return this.appStore._addRepositories(paths)
+    return this.appStore._addRepositories(paths, options)
   }
 
   /**
@@ -833,7 +835,11 @@ export class Dispatcher {
   public async clone(
     url: string,
     path: string,
-    options?: { branch?: string; defaultBranch?: string }
+    options?: {
+      branch?: string
+      defaultBranch?: string
+      folderID?: number | null
+    }
   ): Promise<Repository | null> {
     return this.appStore._completeOpenInDesktop(async () => {
       const { promise, repository } = this.appStore._clone(url, path, options)
@@ -844,7 +850,9 @@ export class Dispatcher {
         return null
       }
 
-      const addedRepositories = await this.addRepositories([path])
+      const addedRepositories = await this.addRepositories([path], {
+        folderID: options?.folderID ?? null,
+      })
 
       if (addedRepositories.length < 1) {
         return null
@@ -870,6 +878,66 @@ export class Dispatcher {
     newAlias: string | null
   ): Promise<void> {
     return this.appStore._changeRepositoryAlias(repository, newAlias)
+  }
+
+  public createRepositoryFolder(
+    name: string,
+    parentFolderID?: number | null
+  ): Promise<Folder> {
+    return this.appStore._createRepositoryFolder(name, parentFolderID)
+  }
+
+  public renameRepositoryFolder(folder: Folder, name: string): Promise<void> {
+    return this.appStore._renameRepositoryFolder(folder, name)
+  }
+
+  /** Set (or clear, with `null`) the color of a repository folder. */
+  public setRepositoryFolderColor(
+    folder: Folder,
+    color: string | null
+  ): Promise<void> {
+    return this.appStore._setRepositoryFolderColor(folder, color)
+  }
+
+  public reorderRepositoryFolders(
+    folders: ReadonlyArray<Folder>
+  ): Promise<void> {
+    return this.appStore._reorderRepositoryFolders(folders)
+  }
+
+  public reparentRepositoryFolder(
+    folder: Folder,
+    newParentFolderID: number | null
+  ): Promise<void> {
+    return this.appStore._reparentRepositoryFolder(folder, newParentFolderID)
+  }
+
+  public moveFolderRelativeTo(
+    moved: Folder,
+    target: Folder,
+    position: 'before' | 'after' | 'into'
+  ): Promise<void> {
+    return this.appStore._moveFolderRelativeTo(moved, target, position)
+  }
+
+  public toggleCollapsedRepositoryFolder(folderID: number): Promise<void> {
+    return this.appStore._toggleCollapsedRepositoryFolder(folderID)
+  }
+
+  /** Show or hide the folder overview (full main-area view). */
+  public setShowFolderOverview(show: boolean): Promise<void> {
+    return this.appStore._setShowFolderOverview(show)
+  }
+
+  public deleteRepositoryFolder(folder: Folder): Promise<void> {
+    return this.appStore._deleteRepositoryFolder(folder)
+  }
+
+  public updateRepositoryFolder(
+    repository: Repository,
+    folderID: number | null
+  ): Promise<void> {
+    return this.appStore._updateRepositoryFolder(repository, folderID)
   }
 
   /** Rename the branch to a new name. */

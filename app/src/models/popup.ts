@@ -26,6 +26,7 @@ import { IAPIComment } from '../lib/api'
 import { ISecretScanResult } from '../ui/secret-scanning/push-protection-error-dialog'
 import { BypassReasonType } from '../ui/secret-scanning/bypass-push-protection-dialog'
 import { TerminalOutput, TerminalOutputListener } from '../lib/git'
+import { Folder } from './folder'
 import type { IBYOKModel, IBYOKProvider } from '../lib/copilot/byok'
 import { WorktreeEntry } from './worktree'
 
@@ -79,6 +80,10 @@ export enum PopupType {
   ConfirmDiscardSelection = 'ConfirmDiscardSelection',
   MoveToApplicationsFolder = 'MoveToApplicationsFolder',
   ChangeRepositoryAlias = 'ChangeRepositoryAlias',
+  CreateRepositoryFolder = 'CreateRepositoryFolder',
+  RenameRepositoryFolder = 'RenameRepositoryFolder',
+  DeleteRepositoryFolder = 'DeleteRepositoryFolder',
+  MoveRepositoryToFolder = 'MoveRepositoryToFolder',
   ThankYou = 'ThankYou',
   CommitMessage = 'CommitMessage',
   MultiCommitOperation = 'MultiCommitOperation',
@@ -183,11 +188,13 @@ export type PopupDetail =
       repository: Repository
       initialSelectedTab?: RepositorySettingsTab
     }
-  | { type: PopupType.AddRepository; path?: string }
+  | { type: PopupType.AddRepository; path?: string; folderID?: number | null }
   | { type: PopupType.CreateRepository; path?: string }
   | {
       type: PopupType.CloneRepository
       initialURL: string | null
+      /** Folder to place the cloned repository into once it is added. */
+      initialFolderID?: number | null
     }
   | {
       type: PopupType.CreateBranch
@@ -342,6 +349,28 @@ export type PopupDetail =
     }
   | { type: PopupType.MoveToApplicationsFolder }
   | { type: PopupType.ChangeRepositoryAlias; repository: Repository }
+  | {
+      type: PopupType.CreateRepositoryFolder
+      repository?: Repository
+      initialName?: string
+      /** Create the new folder nested under this parent folder. */
+      parentFolderID?: number | null
+      /**
+       * After creation, position the new folder before/after an existing
+       * sibling folder (used for "New folder before/after").
+       */
+      positionRelativeTo?: {
+        readonly folder: Folder
+        readonly position: 'before' | 'after'
+      }
+    }
+  | { type: PopupType.RenameRepositoryFolder; folder: Folder }
+  | { type: PopupType.DeleteRepositoryFolder; folder: Folder }
+  | {
+      type: PopupType.MoveRepositoryToFolder
+      repository: Repository
+      folder: Folder
+    }
   | {
       type: PopupType.ThankYou
       userContributions: ReadonlyArray<ReleaseNote>

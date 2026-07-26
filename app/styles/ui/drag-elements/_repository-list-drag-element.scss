@@ -1,0 +1,46 @@
+#repository-list-drag-element {
+  pointer-events: none;
+
+  .drag-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing);
+    min-width: 220px;
+    max-width: 320px;
+    padding: var(--spacing-half) var(--spacing);
+    border: 1px solid var(--box-border-color);
+    border-radius: var(--border-radius);
+    background: linear-gradient(to bottom, var(--box-background-color), var(--box-alt-background-color));
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    opacity: 0.98;
+  }
+
+  @at-root body.theme-dark & .drag-item {
+    border-color: var(--box-border-contrast-color);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .drag-icon {
+    flex-shrink: 0;
+  }
+
+  .drag-item-text {
+    min-width: 0;
+  }
+
+  .drag-item-label,
+  .drag-item-description {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .drag-item-label {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .drag-item-description {
+    color: var(--text-secondary-color);
+    font-size: var(--font-size-sm);
+  }
+}

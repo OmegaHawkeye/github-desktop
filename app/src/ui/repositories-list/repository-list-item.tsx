@@ -27,6 +27,12 @@ interface IRepositoryListItemProps {
 
   /** Number of uncommitted changes */
   readonly changedFilesCount: number
+
+  /**
+   * Whether this repository is part of the current multi-selection (repos
+   * marked with Ctrl/Cmd+click to be dragged into a folder together).
+   */
+  readonly isMultiSelected?: boolean
 }
 
 /** A repository item. */
@@ -55,7 +61,12 @@ export class RepositoryListItem extends React.Component<
     })
 
     return (
-      <div className="repository-list-item" ref={this.listItemRef}>
+      <div
+        className={classNames('repository-list-item', {
+          'multi-selected': this.props.isMultiSelected === true,
+        })}
+        ref={this.listItemRef}
+      >
         <Tooltip
           target={this.listItemRef}
           disabled={enableAccessibleListToolTips()}

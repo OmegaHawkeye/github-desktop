@@ -7,6 +7,8 @@ import {
   DefaultEditorLabel,
   DefaultShellLabel,
 } from '../lib/context-menu'
+import { Folder } from '../../models/folder'
+import { getMoveRepositoryToFolderMenuItem } from './folder-context-menu'
 
 interface IRepositoryListItemContextMenuConfig {
   repository: Repositoryish
@@ -20,6 +22,12 @@ interface IRepositoryListItemContextMenuConfig {
   onRemoveRepository: (repository: Repositoryish) => void
   onChangeRepositoryAlias: (repository: Repository) => void
   onRemoveRepositoryAlias: (repository: Repository) => void
+  onCreateRepositoryFolder: (repository: Repository) => void
+  onUpdateRepositoryFolder: (
+    repository: Repository,
+    folderID: number | null
+  ) => void
+  folders: ReadonlyArray<Folder>
   onCreateWorktree?: (repository: Repository) => void
   onShowWorktrees?: (repository: Repository) => void
 }
@@ -40,6 +48,7 @@ export const generateRepositoryListContextMenu = (
 
   const items: ReadonlyArray<IMenuItem> = [
     ...buildAliasMenuItems(config),
+    ...buildFolderMenuItems(config),
     ...buildWorktreeMenuItems(config),
     {
       label: __DARWIN__ ? 'Copy Repo Name' : 'Copy repo name',
@@ -105,6 +114,24 @@ const buildAliasMenuItems = (
   }
 
   return items
+}
+
+const buildFolderMenuItems = (
+  config: IRepositoryListItemContextMenuConfig
+): ReadonlyArray<IMenuItem> => {
+  const { repository } = config
+
+  if (!(repository instanceof Repository)) {
+    return []
+  }
+
+  return [
+    getMoveRepositoryToFolderMenuItem(repository, config.folders, {
+      onUpdateFolder: folderID =>
+        config.onUpdateRepositoryFolder(repository, folderID),
+      onCreateFolder: () => config.onCreateRepositoryFolder(repository),
+    }),
+  ]
 }
 
 const buildWorktreeMenuItems = (
