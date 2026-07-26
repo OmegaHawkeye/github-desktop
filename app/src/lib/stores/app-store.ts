@@ -1781,6 +1781,21 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   /** This shouldn't be called directly. See `Dispatcher`. */
+  /**
+   * Load a batch of History commits, honoring the "all branches" scope. When
+   * enabled the list is drawn from every ref (`git log --all`, date ordered)
+   * rather than just the current branch's HEAD.
+   */
+  private loadHistoryCommitBatch(
+    gitStore: GitStore,
+    showAllBranches: boolean,
+    skip: number
+  ) {
+    return showAllBranches
+      ? gitStore.loadCommitBatch('--all', skip, ['--date-order'])
+      : gitStore.loadCommitBatch('HEAD', skip)
+  }
+
   public async _executeCompare(
     repository: Repository,
     action: CompareAction
@@ -1818,8 +1833,13 @@ export class AppStore extends TypedBaseStore<IAppState> {
         return
       }
 
-      // load initial group of commits for current branch
-      const commits = await gitStore.loadCommitBatch('HEAD', 0)
+      // load initial group of commits for the current branch (or every branch,
+      // when the History view is scoped to all branches)
+      const commits = await this.loadHistoryCommitBatch(
+        gitStore,
+        compareState.showAllBranches,
+        0
+      )
 
       if (commits === null) {
         return
@@ -1974,13 +1994,17 @@ export class AppStore extends TypedBaseStore<IAppState> {
     const { formState } = state.compareState
     if (formState.kind === HistoryTabMode.History) {
       const commits = state.compareState.commitSHAs
+      const { showAllBranches } = state.compareState
 
       const tip = state.branchesState.tip
 
-      let newCommits: string[] | null = null
+      let newCommits: ReadonlyArray<string> | null = null
 
-      // Prioritize pulling from the local commits if the last one we pulled is local
+      // Prioritize pulling from the local commits if the last one we pulled is
+      // local. The local-commits optimization is scoped to the current branch,
+      // so it's skipped when the History view is showing all branches.
       if (
+        !showAllBranches &&
         commits.length > 0 &&
         tip.kind === TipState.Valid &&
         gitStore.localCommitSHAs.includes(commits[commits.length - 1])
@@ -1989,7 +2013,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
       }
 
       if (!newCommits || newCommits.length === 0) {
-        newCommits = await gitStore.loadCommitBatch('HEAD', commits.length)
+        newCommits = await this.loadHistoryCommitBatch(
+          gitStore,
+          showAllBranches,
+          commits.length
+        )
       }
 
       if (!newCommits) {
@@ -2001,6 +2029,44 @@ export class AppStore extends TypedBaseStore<IAppState> {
       }))
       this.emitUpdate()
     }
+  }
+
+  /**
+   * Toggle whether the History view shows commits from all branches (local and
+   * remote-tracking) or just the current branch, reloading the list to match.
+   */
+  public async _setHistoryShowAllBranches(
+    repository: Repository,
+    showAllBranches: boolean
+  ): Promise<void> {
+    const gitStore = this.gitStoreCache.get(repository)
+
+    this.repositoryStateCache.updateCompareState(repository, () => ({
+      showAllBranches,
+    }))
+
+    // Reload the History list with the new scope. This intentionally bypasses
+    // the unchanged-tip short-circuit in `_executeCompare` since the tip may not
+    // have moved even though the set of commits to show has changed.
+    const commits = await this.loadHistoryCommitBatch(
+      gitStore,
+      showAllBranches,
+      0
+    )
+
+    if (commits === null) {
+      return this.emitUpdate()
+    }
+
+    this.repositoryStateCache.updateCompareState(repository, () => ({
+      formState: { kind: HistoryTabMode.History },
+      commitSHAs: commits,
+      filterText: '',
+      showBranchList: false,
+    }))
+    this.updateOrSelectFirstCommit(repository, commits)
+
+    return this.emitUpdate()
   }
 
   /** This shouldn't be called directly. See `Dispatcher`. */

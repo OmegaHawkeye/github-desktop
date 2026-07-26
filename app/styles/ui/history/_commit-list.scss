@@ -6,6 +6,17 @@
   flex: 1;
   min-height: 0;
 
+  // Palette used for the SourceTree-style commit graph lanes. The number of
+  // colors must match CommitGraphColorCount in app/src/lib/commit-graph.ts.
+  --commit-graph-color-0: #3b82f6;
+  --commit-graph-color-1: #22a355;
+  --commit-graph-color-2: #e0485b;
+  --commit-graph-color-3: #a855f7;
+  --commit-graph-color-4: #f97316;
+  --commit-graph-color-5: #0e9bb8;
+  --commit-graph-color-6: #ca8a04;
+  --commit-graph-color-7: #ec4899;
+
   .draggable,
   .commit {
     width: 100%;
@@ -108,6 +119,29 @@
   // We need to give a bit more padding to the right to make place for the scrollbar
   padding-right: calc(var(--spacing) + var(--spacing-half));
   padding-left: var(--spacing);
+
+  // SourceTree-style branch/commit graph column rendered to the left of the
+  // commit summary. Width is set inline per graph (constant across all rows).
+  .commit-graph-cell {
+    flex: 0 0 auto;
+    align-self: stretch;
+    margin-right: var(--spacing-half);
+
+    .commit-graph {
+      display: block;
+    }
+
+    .commit-graph-edge {
+      // Slightly transparent so overlapping lanes read as distinct strands.
+      opacity: 0.9;
+    }
+
+    .commit-graph-node {
+      // The node picks up the highlight color when its row is selected (see
+      // the .selected override below) for a clear "you are here" affordance.
+      transition: fill 0.1s ease-in-out;
+    }
+  }
 
   .info {
     display: flex;
@@ -214,4 +248,16 @@
       margin-top: 3px;
     }
   }
+}
+
+// Brighter commit-graph lane colors tuned for the dark theme.
+body.theme-dark #commit-list {
+  --commit-graph-color-0: #58a6ff;
+  --commit-graph-color-1: #3fb950;
+  --commit-graph-color-2: #f85149;
+  --commit-graph-color-3: #bc8cff;
+  --commit-graph-color-4: #fb8500;
+  --commit-graph-color-5: #39c5cf;
+  --commit-graph-color-6: #e3b341;
+  --commit-graph-color-7: #f778ba;
 }

@@ -29,6 +29,12 @@ import { formatDate } from '../../lib/format-date'
 import { Avatar } from '../lib/avatar'
 import { Octicon } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
+import {
+  buildCommitGraph,
+  emptyCommitGraph,
+  ICommitGraph,
+} from '../../lib/commit-graph'
+import { getCommitGraphWidth } from './commit-graph'
 
 const RowHeight = 50
 
@@ -53,6 +59,12 @@ interface ICommitListProps {
 
   /** Whether or the user can reset to commits in this list. */
   readonly canResetToCommits?: boolean
+
+  /**
+   * Whether to render the SourceTree-style branch/commit graph column to the
+   * left of each commit. Defaults to false.
+   */
+  readonly showCommitGraph?: boolean
 
   /** The emoji lookup to render images inline */
   readonly emoji: Map<string, Emoji>
@@ -205,6 +217,19 @@ export class CommitList extends React.Component<
       new Map(commitSHAs.map((sha, index) => [sha, index]))
   )
 
+  // Recomputes the graph lane layout only when the ordered SHAs, the loaded
+  // commit contents (via the hash) or the feature toggle change. The hash is
+  // passed purely to drive invalidation; the layout itself reads commitLookup.
+  private computeCommitGraph = memoizeOne(
+    (
+      commitSHAs: ReadonlyArray<string>,
+      commitLookup: Map<string, Commit>,
+      _commitsHash: string,
+      show: boolean
+    ): ICommitGraph =>
+      show ? buildCommitGraph(commitSHAs, commitLookup) : emptyCommitGraph
+  )
+
   private containerRef = React.createRef<HTMLDivElement>()
   private listRef = React.createRef<List>()
 
@@ -272,6 +297,15 @@ export class CommitList extends React.Component<
   private isLocalCommit = (sha: string) =>
     this.props.localCommitSHAs.includes(sha)
 
+  private getCommitGraph(): ICommitGraph {
+    return this.computeCommitGraph(
+      this.props.commitSHAs,
+      this.props.commitLookup,
+      this.commitsHash(this.getVisibleCommits()),
+      this.props.showCommitGraph === true
+    )
+  }
+
   private renderCommit = (row: number) => {
     const sha = this.props.commitSHAs[row]
     const commit = this.props.commitLookup.get(sha)
@@ -292,9 +326,15 @@ export class CommitList extends React.Component<
       (isLocal || unpushedTags.length > 0) &&
       this.props.isLocalRepository === false
 
+    const graph = this.getCommitGraph()
+    const graphWidth = getCommitGraphWidth(graph.laneCount)
+
     return (
       <CommitListItem
         key={commit.sha}
+        graphRow={graph.rows.get(commit.sha)}
+        graphWidth={graphWidth}
+        graphRowHeight={RowHeight}
         gitHubRepository={this.props.gitHubRepository}
         showUnpushedIndicator={showUnpushedIndicator}
         unpushedIndicatorTitle={this.getUnpushedIndicatorTitle(
@@ -621,6 +661,7 @@ export class CommitList extends React.Component<
             tagsToPush: this.props.tagsToPush,
             shasToHighlight: this.props.shasToHighlight,
             preferAbsoluteDates: this.props.preferAbsoluteDates,
+            showCommitGraph: this.props.showCommitGraph,
           }}
           setScrollTop={this.props.compareListScrollTop}
           rowCustomClassNameMap={this.getRowCustomClassMap()}
