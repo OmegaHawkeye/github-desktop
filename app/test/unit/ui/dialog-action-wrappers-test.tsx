@@ -47,7 +47,7 @@ describe('dialog action wrappers', () => {
     assert.equal(footer?.textContent, 'Footer actions')
   })
 
-  it('renders ok-cancel buttons in platform order with non-destructive defaults', () => {
+  it('renders ok-cancel buttons with Cancel on the left on all platforms', () => {
     render(
       <OkCancelButtonGroup
         className="custom-buttons"
@@ -64,10 +64,8 @@ describe('dialog action wrappers', () => {
     const names = buttons.map(button => button.textContent)
 
     assert.notEqual(buttonGroup, null)
-    assert.deepEqual(
-      names,
-      __DARWIN__ ? ['Dismiss', 'Apply'] : ['Apply', 'Dismiss']
-    )
+    // Cancel (Dismiss) is always on the left, the action (Apply) on the right.
+    assert.deepEqual(names, ['Dismiss', 'Apply'])
     assert.equal(
       (screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).type,
       'submit'
@@ -128,6 +126,11 @@ describe('dialog action wrappers', () => {
     assert.notEqual(group, null)
     assert.equal((deleteButton as HTMLButtonElement).type, 'button')
     assert.equal((keepButton as HTMLButtonElement).type, 'submit')
+
+    // The dangerous action is rendered in red (danger), while the dismissal
+    // button stays gray/secondary rather than being highlighted in blue.
+    assert.ok(deleteButton.classList.contains('button-component-danger'))
+    assert.ok(!keepButton.classList.contains('button-component-danger'))
 
     fireEvent.click(deleteButton)
     fireEvent.click(keepButton)

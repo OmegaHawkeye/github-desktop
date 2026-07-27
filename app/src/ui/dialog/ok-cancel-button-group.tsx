@@ -144,6 +144,11 @@ export class OkCancelButtonGroup extends React.Component<
   private renderOkButton() {
     return (
       <Button
+        className={
+          this.props.destructive === true
+            ? 'button-component-danger'
+            : undefined
+        }
         onClick={this.onOkButtonClick}
         disabled={this.props.okButtonDisabled}
         tooltip={this.props.okButtonTitle}
@@ -173,22 +178,15 @@ export class OkCancelButtonGroup extends React.Component<
   }
 
   private renderButtons() {
-    // See https://www.nngroup.com/articles/ok-cancel-or-cancel-ok/
-    if (__DARWIN__) {
-      return (
-        <>
-          {this.renderCancelButton()}
-          {this.renderOkButton()}
-        </>
-      )
-    } else {
-      return (
-        <>
-          {this.renderOkButton()}
-          {this.renderCancelButton()}
-        </>
-      )
-    }
+    // We always render the dismissal (Cancel) button on the left and the
+    // affirmative/action button (e.g. "Checkout", "Delete Tag") on the right,
+    // on every platform, for a consistent layout.
+    return (
+      <>
+        {this.renderCancelButton()}
+        {this.renderOkButton()}
+      </>
+    )
   }
 
   public render() {

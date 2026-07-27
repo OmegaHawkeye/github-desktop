@@ -34,6 +34,13 @@ body.theme-dark {
   --button-text-color: #{$white};
   --button-focus-border-color: #{$blue-600};
 
+  // Colors for the button that performs a dangerous/destructive action
+  // (e.g. deleting a branch). Rendered in red so it's visually distinct
+  // from the affirmative (blue) and dismissal (gray) buttons.
+  --button-danger-background: #{$red};
+  --button-danger-hover-background: #{lighten($red, 5%)};
+  --button-danger-text-color: #{$white};
+
   --link-button-color: #{$link-color};
   --link-button-hover-color: #{lighten($link-color, 3%)};
   --link-button-selected-hover-color: #{$link-color};

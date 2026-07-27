@@ -22,11 +22,12 @@ are constrained to within the dialog itself.
 ## Footer
 
 A typical dialog footer will normally be made up of two buttons, an affirmative/Ok
-button and a dismissal/Cancel button. The ordering of these two buttons is
-platform-specific, see our [dedicated documentation about button order](button-order.md)
-for the specifics. For this reason we have a dedicated component called
+button and a dismissal/Cancel button. The dismissal (`Cancel`) button is always
+rendered on the left and the affirmative/action button on the right, on every
+platform, see our [dedicated documentation about button order](button-order.md)
+for the reasoning. For this reason we have a dedicated component called
 `OkCancelButtonGroup` which is used in the majority of our dialogs and renders
-the buttons in the expected order for the platform.
+the buttons in a consistent order.
 
 For dialogs that only need a single button it's possible to use the `OkCancelButtonGroup`
 but for simple dialogs it's probably better to replace the `DialogFooter` component
@@ -51,6 +52,13 @@ button the default button (i.e. it will be the submit button). Note that setting
 the `destructive` prop does not impact which button triggers the `onSubmit` vs
 `onDismissed` event on the dialog so converting a previously non-destructive dialog
 to a destructive one is as simple as setting the prop on the button group.
+
+The `destructive` prop also controls the button colors: the `Ok` button (the
+dangerous action) is rendered in red while the `Cancel` button stays gray. This
+is deliberately different from a non-destructive dialog where the `Ok` button
+(the affirmative, safe action) is rendered in blue. In other words the button
+that stands out always maps to the action being highlighted — blue for the
+affirmative action, red for the dangerous one — and `Cancel` is always gray.
 
 ## Errors
 

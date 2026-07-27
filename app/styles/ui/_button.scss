@@ -58,6 +58,48 @@
   }
 }
 
+// The button that performs a dangerous/destructive action (e.g. deleting a
+// branch). Rendered in red regardless of its submit/button type so the
+// dangerous choice is always the one that stands out.
+.button-component.button-component-danger,
+.button-component-danger {
+  background-color: var(--button-danger-background);
+  color: var(--button-danger-text-color);
+  border: 1px solid var(--button-danger-background);
+
+  &:not([aria-disabled='true']):hover {
+    border-color: var(--button-danger-hover-background);
+    background-color: var(--button-danger-hover-background);
+  }
+
+  &:focus {
+    background-color: var(--button-danger-hover-background);
+    border-color: var(--button-danger-background);
+    outline-offset: 4px;
+  }
+}
+
+// In a destructive dialog the Cancel button is the submit/default button (so
+// that pressing Enter triggers the safe action) but it must not be styled as
+// the affirmative (blue) button. Reset it to the secondary/gray appearance so
+// only the dangerous action is highlighted (in red).
+.button-group.destructive .button-component[type='submit'] {
+  background-color: var(--secondary-button-background);
+  color: var(--secondary-button-text-color);
+  border: 1px solid var(--secondary-button-border-color);
+
+  &:not([aria-disabled='true']):hover {
+    border-color: var(--secondary-button-hover-border-color);
+    background-color: var(--secondary-button-hover-background);
+  }
+
+  &:focus {
+    background-color: var(--secondary-button-hover-background);
+    border-color: var(--secondary-button-hover-border-color);
+    outline-offset: 4px;
+  }
+}
+
 .link-button-component {
   color: var(--link-button-color);
   text-decoration: none;
