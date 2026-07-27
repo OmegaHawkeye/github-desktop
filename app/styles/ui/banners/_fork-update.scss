@@ -1,0 +1,110 @@
+// [OmegaHawkeye fork] Styling for the fork update-notify banner (surface A).
+// A modern solid-blue bar with a circular icon badge, concise message, and two
+// pill actions (ghost "What's new" + solid "Download"). Remove together with
+// app/src/lib/fork-updates/.
+#fork-update-available.fork-update-banner {
+  $fork-banner-height: 46px;
+  $fork-banner-blue: #1f6feb;
+
+  height: $fork-banner-height;
+  padding-left: var(--spacing);
+  background-color: $fork-banner-blue;
+  color: #ffffff;
+
+  // Let the contents span the width so the message can push the actions right.
+  .contents {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Circular translucent badge around the icon.
+  .fork-update-badge {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: var(--spacing-half);
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+
+    .octicon {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+  }
+
+  // Message text; `margin-right: auto` pushes the actions to the right edge.
+  .fork-update-message {
+    margin-right: auto;
+    padding-right: var(--spacing);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  // Shared pill styling for both action links.
+  .fork-update-action {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: 26px;
+    margin-left: var(--spacing-half);
+    padding: 0 12px;
+    border-radius: 6px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover,
+    &:focus {
+      text-decoration: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.85);
+      outline-offset: 1px;
+    }
+
+    // Ghost pill — translucent white on blue.
+    &.ghost {
+      color: #ffffff;
+      background-color: rgba(255, 255, 255, 0.18);
+
+      &:hover {
+        color: #ffffff;
+        background-color: rgba(255, 255, 255, 0.28);
+      }
+    }
+
+    // Primary pill — solid white with blue text.
+    &.primary {
+      color: $fork-banner-blue;
+      background-color: #ffffff;
+      font-weight: 600;
+
+      &:hover {
+        color: $fork-banner-blue;
+        background-color: #f2f6fc;
+      }
+    }
+  }
+
+  // The wrapper's dismiss (×) button, tinted for the blue background.
+  .close button {
+    color: rgba(255, 255, 255, 0.85);
+
+    &:hover {
+      color: #ffffff;
+    }
+  }
+
+  // Keep the taller height through the enter/exit transitions.
+  &.banner-enter.banner-enter-active,
+  &.banner-exit {
+    height: $fork-banner-height;
+  }
+}
