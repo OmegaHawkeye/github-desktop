@@ -36,6 +36,48 @@ export function clearTagsToPush(repository: Repository) {
   localStorage.removeItem(getTagsToPushKey(repository))
 }
 
+/**
+ * Store in localStorage the tags to delete from the remote for the given
+ * repository.
+ *
+ * @param repository the repository object
+ * @param tagsToDeleteOnRemote array with the tags to delete from the remote
+ */
+export function storeTagsToDeleteOnRemote(
+  repository: Repository,
+  tagsToDeleteOnRemote: ReadonlyArray<string>
+) {
+  if (tagsToDeleteOnRemote.length === 0) {
+    clearTagsToDeleteOnRemote(repository)
+  } else {
+    setStringArray(getTagsToDeleteOnRemoteKey(repository), tagsToDeleteOnRemote)
+  }
+}
+
+/**
+ * Get from localStorage the tags to delete from the remote for the given
+ * repository.
+ *
+ * @param repository the repository object
+ */
+export function getTagsToDeleteOnRemote(repository: Repository) {
+  return getStringArray(getTagsToDeleteOnRemoteKey(repository))
+}
+
+/**
+ * Clear from localStorage the tags to delete from the remote for the given
+ * repository.
+ *
+ * @param repository the repository object
+ */
+export function clearTagsToDeleteOnRemote(repository: Repository) {
+  localStorage.removeItem(getTagsToDeleteOnRemoteKey(repository))
+}
+
 function getTagsToPushKey(repository: Repository) {
   return `tags-to-push-${repository.id}`
+}
+
+function getTagsToDeleteOnRemoteKey(repository: Repository) {
+  return `tags-to-delete-on-remote-${repository.id}`
 }

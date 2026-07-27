@@ -19,6 +19,9 @@ export type PushOptions = {
   readonly branch?: Branch
 
   readonly noVerify?: boolean
+
+  /** Remote tag deletions to send with this push. */
+  readonly tagsToDeleteOnRemote?: ReadonlyArray<string> | null
 } & HookCallbackOptions
 
 /**
@@ -63,6 +66,12 @@ export async function push(
   if (tagsToPush !== null) {
     args.push(...tagsToPush)
   }
+
+  const tagsToDeleteOnRemote = options?.tagsToDeleteOnRemote
+  if (tagsToDeleteOnRemote !== undefined && tagsToDeleteOnRemote !== null) {
+    args.push(...tagsToDeleteOnRemote.map(tagName => `:refs/tags/${tagName}`))
+  }
+
   if (!remoteBranch) {
     args.push('--set-upstream')
   } else if (options?.forceWithLease) {

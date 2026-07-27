@@ -23,7 +23,7 @@ export async function createTag(
 /**
  * Delete a tag.
  *
- * @param repository        - The repository in which to create the new tag.
+ * @param repository        - The repository in which to delete the tag.
  * @param name              - The name of the tag to delete.
  */
 export async function deleteTag(

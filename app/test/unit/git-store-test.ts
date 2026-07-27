@@ -13,7 +13,7 @@ import { GitStore } from '../../src/lib/stores'
 import { AppFileStatusKind } from '../../src/models/status'
 import { Repository } from '../../src/models/repository'
 import { TipState, IValidBranch } from '../../src/models/tip'
-import { getCommit, getRemotes } from '../../src/lib/git'
+import { getCommit, getRemotes, push } from '../../src/lib/git'
 import { getStatusOrThrow } from '../helpers/status'
 import {
   makeCommit,
@@ -22,6 +22,8 @@ import {
 } from '../helpers/repository-scaffolding'
 import { BranchType } from '../../src/models/branch'
 import { TestStatsStore } from '../helpers/test-stats-store'
+import { findDefaultRemote } from '../../src/lib/stores/helpers/find-default-remote'
+import { forceUnwrap } from '../../src/lib/fatal-error'
 
 describe('GitStore', () => {
   describe('loadCommitBatch', () => {
@@ -331,6 +333,59 @@ describe('GitStore', () => {
       // ensure the tracking information is unchanged
       assert(currentBranchAfter !== undefined)
       assert.equal(currentBranchAfter.upstream, 'origin/some-other-branch')
+    })
+  })
+
+  describe('deleteTag', () => {
+    it('queues remote tag deletion until a later push when requested', async t => {
+      const path = await setupFixtureRepository(t, 'test-repo-with-tags')
+      const remoteRepository = new Repository(path, -1, null, false)
+      const repository = await cloneLocalRepository(t, remoteRepository)
+      const gitStore = new GitStore(repository, shell, new TestStatsStore())
+      const remotes = await getRemotes(repository)
+      const originRemote = forceUnwrap(
+        "couldn't find origin remote",
+        findDefaultRemote(remotes)
+      )
+
+      await exec(['tag', '-a', '-m', '', 'my-new-tag', 'HEAD'], repository.path)
+      await exec(
+        ['push', originRemote.name, 'refs/tags/my-new-tag'],
+        repository.path
+      )
+
+      await gitStore.deleteTag('my-new-tag', true)
+
+      const localCommit = await getCommit(repository, 'HEAD')
+      const remoteCommit = await getCommit(remoteRepository, 'HEAD')
+
+      assert.equal(localCommit?.tags.includes('my-new-tag'), false)
+      assert.equal(remoteCommit?.tags.includes('my-new-tag'), true)
+      assert.deepStrictEqual(gitStore.tagsToDeleteOnRemote, ['my-new-tag'])
+
+      await push(repository, originRemote, 'master', null, null, {
+        tagsToDeleteOnRemote: gitStore.tagsToDeleteOnRemote,
+      })
+
+      const remoteCommitAfterPush = await getCommit(remoteRepository, 'HEAD')
+      assert.equal(remoteCommitAfterPush?.tags.includes('my-new-tag'), false)
+    })
+
+    it('does not queue remote deletion for an unpushed tag', async t => {
+      const repository = await setupEmptyRepository(t)
+      await makeCommit(repository, {
+        commitMessage: 'initial commit',
+        entries: [{ path: 'README.md', contents: 'Hello world' }],
+      })
+      const gitStore = new GitStore(repository, shell, new TestStatsStore())
+
+      await gitStore.createTag('my-new-tag', 'HEAD')
+      assert.deepStrictEqual(gitStore.tagsToPush, ['my-new-tag'])
+
+      await gitStore.deleteTag('my-new-tag', true)
+
+      assert.deepStrictEqual(gitStore.tagsToPush, [])
+      assert.deepStrictEqual(gitStore.tagsToDeleteOnRemote, [])
     })
   })
 })

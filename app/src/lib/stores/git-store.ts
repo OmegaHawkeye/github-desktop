@@ -93,7 +93,12 @@ import { getStashes, getStashedFiles } from '../git/stash'
 import { IStashEntry, StashedChangesLoadStates } from '../../models/stash-entry'
 import { PullRequest } from '../../models/pull-request'
 import { IStatsStore } from '../stats'
-import { getTagsToPush, storeTagsToPush } from './helpers/tags-to-push-storage'
+import {
+  getTagsToDeleteOnRemote,
+  getTagsToPush,
+  storeTagsToDeleteOnRemote,
+  storeTagsToPush,
+} from './helpers/tags-to-push-storage'
 import { DiffSelection, ITextDiff } from '../../models/diff'
 import { getDefaultBranch } from '../helpers/default-branch'
 import { rm, stat } from 'fs/promises'
@@ -143,6 +148,8 @@ export class GitStore extends BaseStore {
 
   private _tagsToPush: ReadonlyArray<string> = []
 
+  private _tagsToDeleteOnRemote: ReadonlyArray<string> = []
+
   private _remotes: ReadonlyArray<IRemote> = []
 
   private _defaultRemote: IRemote | null = null
@@ -165,6 +172,7 @@ export class GitStore extends BaseStore {
     super()
 
     this._tagsToPush = getTagsToPush(repository)
+    this._tagsToDeleteOnRemote = getTagsToDeleteOnRemote(repository)
   }
 
   /**
@@ -359,23 +367,29 @@ export class GitStore extends BaseStore {
     }
 
     await this.refreshTags()
+    this.removeTagToDeleteOnRemote(name)
     this.addTagToPush(name)
 
     this.statsStore.increment('tagsCreatedInDesktop')
   }
 
-  public async deleteTag(name: string) {
-    const result = await this.performFailableOperation(async () => {
+  public async deleteTag(name: string, removeFromRemote = false) {
+    const wasPendingPush = this._tagsToPush.includes(name)
+    const deletedLocally = await this.performFailableOperation(async () => {
       await deleteTag(this.repository, name)
       return true
     })
 
-    if (result === undefined) {
+    if (deletedLocally === undefined) {
       return
     }
 
     await this.refreshTags()
     this.removeTagToPush(name)
+
+    if (removeFromRemote && !wasPendingPush) {
+      this.addTagToDeleteOnRemote(name)
+    }
 
     this.statsStore.increment('tagsDeleted')
   }
@@ -387,6 +401,11 @@ export class GitStore extends BaseStore {
 
   public get tagsToPush(): ReadonlyArray<string> | null {
     return this._tagsToPush
+  }
+
+  /** The remote tags queued for deletion on the next push. */
+  public get tagsToDeleteOnRemote(): ReadonlyArray<string> | null {
+    return this._tagsToDeleteOnRemote
   }
 
   public get localTags(): Map<string, string> | null {
@@ -530,6 +549,40 @@ export class GitStore extends BaseStore {
     this._tagsToPush = []
 
     storeTagsToPush(this.repository, this._tagsToPush)
+    this.emitUpdate()
+  }
+
+  private addTagToDeleteOnRemote(tagName: string) {
+    if (this._tagsToDeleteOnRemote.includes(tagName)) {
+      return
+    }
+
+    this._tagsToDeleteOnRemote = [...this._tagsToDeleteOnRemote, tagName]
+
+    storeTagsToDeleteOnRemote(this.repository, this._tagsToDeleteOnRemote)
+    this.emitUpdate()
+  }
+
+  private removeTagToDeleteOnRemote(tagNameToRemove: string) {
+    const nextTagsToDeleteOnRemote = this._tagsToDeleteOnRemote.filter(
+      tagName => tagName !== tagNameToRemove
+    )
+
+    if (nextTagsToDeleteOnRemote.length === this._tagsToDeleteOnRemote.length) {
+      return
+    }
+
+    this._tagsToDeleteOnRemote = nextTagsToDeleteOnRemote
+
+    storeTagsToDeleteOnRemote(this.repository, this._tagsToDeleteOnRemote)
+    this.emitUpdate()
+  }
+
+  /** Clears the pending remote tag deletions after a successful push. */
+  public clearTagsToDeleteOnRemote() {
+    this._tagsToDeleteOnRemote = []
+
+    storeTagsToDeleteOnRemote(this.repository, this._tagsToDeleteOnRemote)
     this.emitUpdate()
   }
 

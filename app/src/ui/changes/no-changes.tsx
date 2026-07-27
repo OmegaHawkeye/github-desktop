@@ -345,8 +345,13 @@ export class NoChanges extends React.Component<
     this.props.dispatcher.incrementMetric('suggestedStepOpenInExternalEditor')
 
   private renderRemoteAction() {
-    const { remote, aheadBehind, branchesState, tagsToPush } =
-      this.props.repositoryState
+    const {
+      remote,
+      aheadBehind,
+      branchesState,
+      tagsToPush,
+      tagsToDeleteOnRemote,
+    } = this.props.repositoryState
     const { tip, defaultBranch, currentPullRequest } = branchesState
 
     if (tip.kind !== TipState.Valid) {
@@ -378,9 +383,16 @@ export class NoChanges extends React.Component<
 
     if (
       aheadBehind.ahead > 0 ||
-      (tagsToPush !== null && tagsToPush.length > 0)
+      (tagsToPush !== null && tagsToPush.length > 0) ||
+      (tagsToDeleteOnRemote !== null && tagsToDeleteOnRemote.length > 0)
     ) {
-      return this.renderPushBranchAction(tip, remote, aheadBehind, tagsToPush)
+      return this.renderPushBranchAction(
+        tip,
+        remote,
+        aheadBehind,
+        tagsToPush,
+        tagsToDeleteOnRemote
+      )
     }
 
     const isGitHub = this.props.repository.gitHubRepository !== null
@@ -593,7 +605,8 @@ export class NoChanges extends React.Component<
     tip: IValidBranch,
     remote: IRemote,
     aheadBehind: IAheadBehind,
-    tagsToPush: ReadonlyArray<string> | null
+    tagsToPush: ReadonlyArray<string> | null,
+    tagsToDeleteOnRemote: ReadonlyArray<string> | null
   ) {
     const itemId: MenuIDs = 'push'
     const menuItem = this.getMenuItemInfo(itemId)
@@ -623,6 +636,15 @@ export class NoChanges extends React.Component<
         tagsToPush.length === 1
           ? '1 tag'
           : `${formatNumber(tagsToPush.length)} tags`
+      )
+    }
+
+    if (tagsToDeleteOnRemote !== null && tagsToDeleteOnRemote.length > 0) {
+      itemsToPushTypes.push('remote tag deletions')
+      itemsToPushDescriptions.push(
+        tagsToDeleteOnRemote.length === 1
+          ? '1 remote tag deletion'
+          : `${tagsToDeleteOnRemote.length} remote tag deletions`
       )
     }
 

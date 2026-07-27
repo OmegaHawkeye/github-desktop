@@ -2,6 +2,7 @@ import { describe, it, TestContext } from 'node:test'
 import assert from 'node:assert'
 import * as path from 'path'
 import { writeFile } from 'fs/promises'
+import { exec } from 'dugite'
 import { Repository } from '../../../src/models/repository'
 import {
   getCommit,
@@ -99,6 +100,30 @@ describe('git/tag', () => {
 
       const commit = await getCommit(repository, 'HEAD')
       assert.equal(commit?.tags.length, 0)
+    })
+
+    it('deletes a remote tag when pushed as a delete refspec', async t => {
+      const path = await setupFixtureRepository(t, 'test-repo-with-tags')
+      const remoteRepository = new Repository(path, -1, null, false)
+      const repository = await setupLocalForkOfRepository(t, remoteRepository)
+      const remotes = await getRemotes(repository)
+      const originRemote = forceUnwrap(
+        "couldn't find origin remote",
+        findDefaultRemote(remotes)
+      )
+
+      await exec(['tag', '-a', '-m', '', 'my-new-tag', 'HEAD'], repository.path)
+      await exec(
+        ['push', originRemote.name, 'refs/tags/my-new-tag'],
+        repository.path
+      )
+
+      await push(repository, originRemote, 'master', null, null, {
+        tagsToDeleteOnRemote: ['my-new-tag'],
+      })
+
+      const remoteCommit = await getCommit(remoteRepository, 'HEAD')
+      assert.equal(remoteCommit?.tags.includes('my-new-tag'), false)
     })
   })
 
