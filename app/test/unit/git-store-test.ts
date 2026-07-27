@@ -349,7 +349,10 @@ describe('GitStore', () => {
       )
 
       await exec(['tag', '-a', '-m', '', 'my-new-tag', 'HEAD'], repository.path)
-      await exec(['push', originRemote.name, 'refs/tags/my-new-tag'], repository.path)
+      await exec(
+        ['push', originRemote.name, 'refs/tags/my-new-tag'],
+        repository.path
+      )
 
       await gitStore.deleteTag('my-new-tag', true)
 

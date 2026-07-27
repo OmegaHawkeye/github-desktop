@@ -113,7 +113,10 @@ describe('git/tag', () => {
       )
 
       await exec(['tag', '-a', '-m', '', 'my-new-tag', 'HEAD'], repository.path)
-      await exec(['push', originRemote.name, 'refs/tags/my-new-tag'], repository.path)
+      await exec(
+        ['push', originRemote.name, 'refs/tags/my-new-tag'],
+        repository.path
+      )
 
       await push(repository, originRemote, 'master', null, null, {
         tagsToDeleteOnRemote: ['my-new-tag'],
