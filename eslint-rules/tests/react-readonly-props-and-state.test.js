@@ -1,7 +1,7 @@
 // @ts-check
 
 const { describe, it } = require('node:test')
-const { ESLintUtils } = require('@typescript-eslint/experimental-utils')
+const { ESLintUtils } = require('@typescript-eslint/utils')
 
 const RuleTester = ESLintUtils.RuleTester
 const rule = require('../react-readonly-props-and-state')
