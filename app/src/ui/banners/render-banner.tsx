@@ -19,6 +19,8 @@ import { SuccessfulSquash } from './successful-squash'
 import { SuccessBanner } from './success-banner'
 import { ConflictsFoundBanner } from './conflicts-found-banner'
 import { OSVersionNoLongerSupportedBanner } from './os-version-no-longer-supported-banner'
+// [OmegaHawkeye fork] update-notify feature — remove with app/src/lib/fork-updates/
+import { ForkUpdateAvailable } from './fork-update-available'
 
 export function renderBanner(
   banner: Banner,
@@ -171,6 +173,17 @@ export function renderBanner(
       )
     case BannerType.OSVersionNoLongerSupported:
       return <OSVersionNoLongerSupportedBanner onDismissed={onDismissed} />
+    // [OmegaHawkeye fork] update-notify feature — remove with app/src/lib/fork-updates/
+    case BannerType.ForkUpdateAvailable:
+      return (
+        <ForkUpdateAvailable
+          key="fork-update-available"
+          releaseName={banner.releaseName}
+          notesUrl={banner.notesUrl}
+          downloadUrl={banner.downloadUrl}
+          onDismissed={onDismissed}
+        />
+      )
     default:
       return assertNever(banner, `Unknown popup type: ${banner}`)
   }

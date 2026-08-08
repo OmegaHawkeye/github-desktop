@@ -117,6 +117,17 @@ export function enableAccessibleListToolTips(): boolean {
   return enableBetaFeatures()
 }
 
+/**
+ * [OmegaHawkeye fork] Should the app check the fork's own GitHub Releases
+ * (tags prefixed `omega-v`) and notify the user when a newer fork build is
+ * available? This is the single kill switch for the fork update-notify
+ * feature — flip to `false` (or delete this function together with
+ * app/src/lib/fork-updates/) to fully revert before an upstream merge.
+ */
+export function enableForkUpdates(): boolean {
+  return true
+}
+
 export const enableHooksEnvironment = () => true
 
 export const enableHooksByDefault = enableBetaFeatures

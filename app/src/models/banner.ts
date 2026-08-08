@@ -17,6 +17,8 @@ export enum BannerType {
   SuccessfulReorder = 'SuccessfulReorder',
   ConflictsFound = 'ConflictsFound',
   OSVersionNoLongerSupported = 'OSVersionNoLongerSupported',
+  // [OmegaHawkeye fork] update-notify feature — remove with app/src/lib/fork-updates/
+  ForkUpdateAvailable = 'ForkUpdateAvailable',
 }
 
 export type Banner =
@@ -122,3 +124,13 @@ export type Banner =
       readonly onOpenConflictsDialog: () => void
     }
   | { readonly type: BannerType.OSVersionNoLongerSupported }
+  // [OmegaHawkeye fork] A newer fork build (omega-v*) is available to download.
+  | {
+      readonly type: BannerType.ForkUpdateAvailable
+      /** Release title, e.g. `omega-v1.2.0`. */
+      readonly releaseName: string
+      /** URL of the release page ("What's new"). */
+      readonly notesUrl: string
+      /** Direct asset download URL, or `null` to fall back to notesUrl. */
+      readonly downloadUrl: string | null
+    }

@@ -15,6 +15,8 @@ import { AppStore, GitHubUserStore, IssuesStore } from '../lib/stores'
 import { assertNever } from '../lib/fatal-error'
 import { shell } from '../lib/app-shell'
 import { updateStore, UpdateStatus } from './lib/update-store'
+// [OmegaHawkeye fork] update-notify feature — remove with app/src/lib/fork-updates/
+import { forkUpdateChecker } from '../lib/fork-updates'
 import { RetryAction } from '../models/retry-actions'
 import { FetchType } from '../models/fetch'
 import { shouldRenderApplicationMenu } from './lib/features'
@@ -200,6 +202,7 @@ import { TestCLIActionDialog } from './cli-action/test-cli-action-dialog'
 import { TestCopilotSnapshotCardDialog } from './preferences/test-copilot-snapshot-card-dialog'
 import {
   enableCopilotSdkCommitMessageGeneration,
+  enableForkUpdates,
   enableWorktreeSupport,
 } from '../lib/feature-flag'
 import {
@@ -403,6 +406,13 @@ export class App extends React.Component<IAppProps, IAppState> {
       // env. Prod and beta environment will trigger this during automatic check
       // for updates.
       this.props.dispatcher.setUpdateShowCaseVisibility(true)
+    }
+
+    // [OmegaHawkeye fork] Check the fork's own GitHub Releases (omega-v*) and
+    // notify via banner + OS toast. Runs on all channels. Remove this block
+    // together with app/src/lib/fork-updates/ to revert.
+    if (enableForkUpdates()) {
+      forkUpdateChecker.start(this.props.dispatcher)
     }
 
     log.info(`launching: ${getVersion()} (${getOS()})`)
