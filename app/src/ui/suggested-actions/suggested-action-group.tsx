@@ -26,6 +26,11 @@ interface ISuggestedActionGroup {
   enableTransitions?: boolean
 }
 
+// The @types/react-css-transition-replace package is missing several props
+// (e.g. transitionAppear) that the library actually supports.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CSSTransitionReplace = ReactCSSTransitionReplace as React.ComponentType<any>
+
 /**
  * Wraps a list of suggested action components with extra styling
  * and animations.
@@ -38,7 +43,7 @@ export const SuggestedActionGroup: React.FunctionComponent<
     const enableTransitions =
       props.enableTransitions !== undefined ? props.enableTransitions : true
     return (
-      <ReactCSSTransitionReplace
+      <CSSTransitionReplace
         transitionAppear={false}
         overflowHidden={false}
         transitionEnter={enableTransitions}
@@ -50,7 +55,7 @@ export const SuggestedActionGroup: React.FunctionComponent<
         transitionLeaveTimeout={500}
       >
         {props.children}
-      </ReactCSSTransitionReplace>
+      </CSSTransitionReplace>
     )
   }
   return <div className={cn}>{props.children}</div>

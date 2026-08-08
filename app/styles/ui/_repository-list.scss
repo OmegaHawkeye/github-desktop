@@ -78,6 +78,10 @@
     text-overflow: ellipsis;
     overflow-x: hidden;
     white-space: nowrap;
+    color: var(--text-secondary-color);
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   /** Full-width hit target for folder rows (drag source + drop target). */
@@ -410,17 +414,17 @@
  * toolbar so dark mode does not show a bright “card” over dark chrome.
  */
 #foldout-container .foldout:has(.repository-list) {
-  background-color: var(--repository-sidebar-background);
+  background-color: var(--background-color);
   color: var(--text-color);
 
   .repository-list,
   .filter-list,
   .filter-list-container {
-    background-color: var(--repository-sidebar-background);
+    background-color: var(--background-color);
   }
 
   .list .ReactVirtualized__Grid {
-    background-color: var(--repository-sidebar-background);
+    background-color: var(--background-color);
   }
 
   .filter-field-row {

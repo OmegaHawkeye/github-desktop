@@ -415,7 +415,8 @@ ipcRenderer.on('cli-action', (_, action) =>
     delete defaults?.[k]
     delete types?.[k]
   })
-})(Grid.defaultProps, Grid.propTypes)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+})(Grid.defaultProps, (Grid as any).propTypes)
 
 ReactDOM.render(
   <App
